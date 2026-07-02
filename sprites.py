@@ -36,71 +36,19 @@ class Player(pg.sprite.Sprite):
         self.down_img_index = 0
         self.image_dead = None
         self.player_colour = player_colour
-        if self.player_colour == "Red":
-            self.player_imgs_left = red_player_imgs_left
-            self.player_imgs_right = red_player_imgs_right
-            self.player_imgs_down = red_player_imgs_down
-            self.player_imgs_up = red_player_imgs_up
-            self.image = red_player_imgs_down[0]
-            self.image_dead = red_player_imgs_dead
-            self.image_ghost_left = red_player_imgs_ghost_left
-            self.image_ghost_right = red_player_imgs_ghost_right
-            self.emergency_meeting_img = red_player_emergency_meeting
-            self.emergency_meeting_img_sync = "red_player_emergency_meeting"
-            self.emergency_meeting_img_sync_report = "red_player_emergency_meeting_report"
-            self.eject_img = "red_player_imgs_right[9]"
-        if self.player_colour == "Blue":
-            self.player_imgs_left = blue_player_imgs_left
-            self.player_imgs_right = blue_player_imgs_right
-            self.player_imgs_down = blue_player_imgs_down
-            self.player_imgs_up = blue_player_imgs_up
-            self.image = blue_player_imgs_down[0]
-            self.image_dead = blue_player_imgs_dead
-            self.image_ghost_left = blue_player_imgs_ghost_left
-            self.image_ghost_right = blue_player_imgs_ghost_right
-            self.emergency_meeting_img = blue_player_emergency_meeting
-            self.emergency_meeting_img_sync = "blue_player_emergency_meeting"
-            self.emergency_meeting_img_sync_report = "blue_player_emergency_meeting_report"
-            self.eject_img = "blue_player_imgs_right[9]"
-        if self.player_colour == "Orange":
-            self.player_imgs_left = orange_player_imgs_left
-            self.player_imgs_right = orange_player_imgs_right
-            self.player_imgs_down = orange_player_imgs_down
-            self.player_imgs_up = orange_player_imgs_up
-            self.image = orange_player_imgs_down[0]
-            self.image_dead = orange_player_imgs_dead
-            self.image_ghost_left = orange_player_imgs_ghost_left
-            self.image_ghost_right = orange_player_imgs_ghost_right
-            self.emergency_meeting_img = orange_player_emergency_meeting
-            self.emergency_meeting_img_sync = "orange_player_emergency_meeting"
-            self.emergency_meeting_img_sync_report = "orange_player_emergency_meeting_report"
-            self.eject_img = "orange_player_imgs_right[9]"
-        if self.player_colour == "Yellow":
-            self.player_imgs_left = yellow_player_imgs_left
-            self.player_imgs_right = yellow_player_imgs_right
-            self.player_imgs_down = yellow_player_imgs_down
-            self.player_imgs_up = yellow_player_imgs_up
-            self.image = yellow_player_imgs_down[0]
-            self.image_dead = yellow_player_imgs_dead
-            self.image_ghost_left = yellow_player_imgs_ghost_left
-            self.image_ghost_right = yellow_player_imgs_ghost_right
-            self.emergency_meeting_img = yellow_player_emergency_meeting
-            self.emergency_meeting_img_sync = "yellow_player_emergency_meeting"
-            self.emergency_meeting_img_sync_report = "yellow_player_emergency_meeting_report"
-            self.eject_img = "yellow_player_imgs_right[9]"
-        if self.player_colour == "Green":
-            self.player_imgs_left = green_player_imgs_left
-            self.player_imgs_right = green_player_imgs_right
-            self.player_imgs_down = green_player_imgs_down
-            self.player_imgs_up = green_player_imgs_up
-            self.image = green_player_imgs_down[0]
-            self.image_dead = green_player_imgs_dead
-            self.image_ghost_left = green_player_imgs_ghost_left
-            self.image_ghost_right = green_player_imgs_ghost_right
-            self.emergency_meeting_img = green_player_emergency_meeting
-            self.emergency_meeting_img_sync = "green_player_emergency_meeting"
-            self.emergency_meeting_img_sync_report = "green_player_emergency_meeting_report"
-            self.eject_img = "green_player_imgs_right[9]"
+        colour_data = COLOUR_SETS[self.player_colour]
+        self.player_imgs_left = colour_data["left"]
+        self.player_imgs_right = colour_data["right"]
+        self.player_imgs_down = colour_data["down"]
+        self.player_imgs_up = colour_data["up"]
+        self.image = self.player_imgs_down[0]
+        self.image_dead = colour_data["dead"]
+        self.image_ghost_left = colour_data["ghost_left"]
+        self.image_ghost_right = colour_data["ghost_right"]
+        self.emergency_meeting_img = colour_data["meeting"]
+        self.emergency_meeting_img_sync = colour_data["meeting_ref"]
+        self.emergency_meeting_img_sync_report = colour_data["meeting_report_ref"]
+        self.eject_img = colour_data["eject_ref"]
         #self.image = game.player_imgs_left[0]
         self.rect = self.image.get_rect()
         self.hit_rect = self.rect
@@ -558,7 +506,7 @@ class Button:
         # Draw button on screen
         pygame.draw.rect(win, self.color, (self.x, self.y, self.width, self.height))
         # font = pygame.font.SysFont("comicsans", self.text_size)
-        font = pg.font.Font(FONT, self.text_size)
+        font = vn_font(self.text_size)
         text = font.render(self.text, 1, self.text_color)
         win.blit(text, (self.x + round(self.width / 2) - round(text.get_width() / 2),
                                 self.y + round(self.height / 2) - round(text.get_height() / 2)))

@@ -18,7 +18,7 @@ MENU_FONT_COLOR = (255, 255, 255)
 WIDTH = 1280   # 16 * 64 or 32 * 32 or 64 * 16
 HEIGHT = 640  # 16 * 48 or 32 * 24 or 64 * 12
 FPS = 60
-MULTIPLAYER_SERVER_IP = "192.168.1.147"  # host machine's LAN IP; change this if the host changes
+MULTIPLAYER_SERVER_IP = "192.168.1.84"  # host machine's LAN IP; change this if the host changes
 TITLE = "Multi Player Game"
 BGCOLOR = Brown
 NO_OF_MISSIONS = 8
@@ -27,6 +27,102 @@ TILESIZE = 32
 GRIDWIDTH = WIDTH / TILESIZE
 GRIDHEIGHT = HEIGHT / TILESIZE
 FONT = 'Assets/Fonts/Rubik-ExtraBold.TTF'
+VN_FONT_NAME = 'segoeui'
+
+
+def vn_font(size, bold=True):
+    return pygame.font.SysFont(VN_FONT_NAME, size, bold=bold)
+
+
+ROLE_CREW = "Cán bộ liêm chính"
+ROLE_IMPOSTER = "Cán bộ tham nhũng"
+
+COLOR_DISPLAY_NAMES = {
+    "Red": "Đỏ",
+    "Blue": "Xanh dương",
+    "Orange": "Cam",
+    "Yellow": "Vàng",
+    "Green": "Xanh lá",
+    "Black": "Đen",
+    "Brown": "Nâu",
+    "Pink": "Hồng",
+    "Purple": "Tím",
+    "White": "Trắng",
+}
+
+SERVER_COLOURS = ["Red", "Blue", "Orange", "Yellow", "Green", "Black", "Brown", "Pink", "Purple", "White"]
+
+TASK_DIALOGS = {
+    "stabilize": (
+        "Bắt đầu định hướng quy trình thanh tra: hãy đưa mục tiêu về đúng trọng tâm.",
+        "Hoàn thành: quy trình thanh tra đã được định hướng rõ ràng, tránh né không còn chỗ đứng.",
+    ),
+    "garbage": (
+        "Bắt đầu loại bỏ hồ sơ sai lệch: kéo cần để tách bỏ thông tin bị thao túng.",
+        "Hoàn thành: hồ sơ sai lệch đã bị loại bỏ khỏi hệ thống.",
+    ),
+    "wifi": (
+        "Bắt đầu khôi phục cổng công khai minh bạch: kết nối lại kênh thông tin cho nhân dân giám sát.",
+        "Hoàn thành: cổng công khai minh bạch đã hoạt động trở lại.",
+    ),
+    "wires": (
+        "Bắt đầu kết nối hệ thống giám sát: nối đủ các đường kiểm tra để dữ liệu không bị cắt xén.",
+        "Hoàn thành: hệ thống giám sát đã được kết nối đầy đủ.",
+    ),
+    "power": (
+        "Bắt đầu kích hoạt cơ chế kiểm soát quyền lực: đẩy nguồn lực vào đúng kênh giám sát.",
+        "Hoàn thành: cơ chế kiểm soát quyền lực đã được kích hoạt.",
+    ),
+    "engine": (
+        "Bắt đầu chuẩn hóa quy trình xử lý tố cáo: căn chỉnh từng bước để tránh oan sai và bỏ lọt sai phạm.",
+        "Hoàn thành: quy trình xử lý tố cáo đã được chuẩn hóa.",
+    ),
+    "fuel": (
+        "Bắt đầu bổ sung nguồn lực cho kiểm toán: cần có đủ dữ liệu và phương tiện để kiểm tra đến cùng.",
+        "Hoàn thành: nguồn lực kiểm toán đã được bổ sung.",
+    ),
+    "asteroids": (
+        "Bắt đầu ngăn chặn tin giả và lợi ích nhóm: bắn hạ các nguồn gây nhiễu thông tin.",
+        "Hoàn thành: tin giả và lợi ích nhóm đã bị đẩy lùi.",
+    ),
+}
+
+SYSTEM_DIALOGS = {
+    "lights_off": "Thông tin minh bạch bị che mờ. Hãy khôi phục hệ thống công khai tại phòng điện.",
+    "lights_on": "Thông tin minh bạch đã được khôi phục. Tập thể có thêm căn cứ để giám sát.",
+    "reactor_on": "Khủng hoảng niềm tin đang lan rộng. Cần kích hoạt lại cơ chế kiểm soát trước khi quá muộn.",
+    "reactor_off": "Khủng hoảng niềm tin đã được kiểm soát. Quyền lực cần tiếp tục được giám sát.",
+    "report": "Một đầu mối bất thường đã được báo cáo. Hãy biểu quyết dựa trên bằng chứng.",
+    "no_eject": "Không ai bị đình chỉ. Phiếu biểu quyết chưa đủ căn cứ.",
+}
+
+CASE_BRIEF = (
+    "Vụ việc: Một số cán bộ đang lợi dụng chức vụ để che giấu sai phạm, làm nhiễu thông tin và gây suy giảm niềm tin xã hội.\n"
+    "Mục tiêu: Cán bộ liêm chính hoàn thành nhiệm vụ minh bạch hóa hệ thống; cán bộ tham nhũng tìm cách bịt đầu mối và phá hoại giám sát."
+)
+
+WIN_TEXTS = {
+    "crew_tasks": (
+        "Cán bộ liêm chính chiến thắng",
+        "Hệ thống minh bạch đã được khôi phục.",
+        "Bài học: Minh bạch thông tin, kiểm soát quyền lực và xử lý tố cáo đúng quy trình là nền tảng quan trọng để phòng chống tham nhũng.",
+    ),
+    "crew_eject": (
+        "Cán bộ liêm chính chiến thắng",
+        "Cán bộ tham nhũng đã bị phát hiện và đình chỉ.",
+        "Bài học: Chống tham nhũng cần bằng chứng, sự quan sát và trách nhiệm của tập thể.",
+    ),
+    "imposter_kill": (
+        "Cán bộ tham nhũng chiến thắng",
+        "Sai phạm đã bị che giấu và niềm tin xã hội suy giảm.",
+        "Bài học: Khi thông tin bị che mờ, hồ sơ bị thao túng và quyền lực thiếu kiểm soát, tham nhũng có thể tiếp tục tồn tại.",
+    ),
+    "imposter_crisis": (
+        "Cán bộ tham nhũng chiến thắng",
+        "Niềm tin xã hội đã sụp đổ. Cán bộ tham nhũng đã che giấu sai phạm thành công.",
+        "Bài học: Khi thông tin bị che mờ, hồ sơ bị thao túng và quyền lực thiếu kiểm soát, tham nhũng có thể tiếp tục tồn tại.",
+    ),
+}
 
 
 # Menu setting
@@ -447,126 +543,128 @@ yellow_player_emergency_meeting = pygame.image.load('Assets/Images/Alerts/emerge
 yellow_player_emergency_meeting_report = pygame.image.load('Assets/Images/Alerts/report_dead_body_yellow.png')
 
 
+def _load_walk(colour_dir, colour_slug, direction, frames):
+    imgs = []
+    for i in range(1, frames + 1):
+        img = pygame.image.load(f'Assets/Images/Player/{colour_dir}/{colour_slug}_{direction}/step{i}.png')
+        imgs.append(pygame.transform.smoothscale(img, (64, 86)))
+    return imgs
+
+
 # Black Player Movements-----------------
-# Player left movement
-black_player_imgs_left = []
-black_player_imgs_left.append(pygame.image.load('Assets/Images/Player/Black/black_left_walk/step1.png'))
-black_player_imgs_left[0] = pygame.transform.smoothscale(black_player_imgs_left[0], (64, 86))
-
-
-# Player right movement
-black_player_imgs_right = []
-black_player_imgs_right.append(pygame.image.load('Assets/Images/Player/Black/black_right_walk/step1.png'))
-black_player_imgs_right[0] = pygame.transform.smoothscale(black_player_imgs_right[0], (64, 86))
-
-# Player down movement
-black_player_imgs_down = []
-black_player_imgs_down.append(pygame.image.load('Assets/Images/Player/Black/black_down_walk/step1.png'))
-black_player_imgs_down[0] = pygame.transform.smoothscale(black_player_imgs_down[0], (64, 86))
-
-# Player Up movement
-black_player_imgs_up = []
-black_player_imgs_up.append(pygame.image.load('Assets/Images/Player/Black/black_up_walk/step1.png'))
-black_player_imgs_up[0] = pygame.transform.smoothscale(black_player_imgs_up[0], (64, 86))
-    
+black_player_imgs_left = _load_walk('Black', 'black', 'left_walk', 17)
+black_player_imgs_right = _load_walk('Black', 'black', 'right_walk', 17)
+black_player_imgs_down = _load_walk('Black', 'black', 'down_walk', 18)
+black_player_imgs_up = _load_walk('Black', 'black', 'up_walk', 17)
 black_player_imgs_dead = pygame.image.load('Assets/Images/Player/Dead/Deadblack.png')
 
 
 # Brown Player Movements-----------------
-# Player left movement
-brown_player_imgs_left = []
-brown_player_imgs_left.append(pygame.image.load('Assets/Images/Player/Brown/brown_left_walk/step1.png'))
-brown_player_imgs_left[0] = pygame.transform.smoothscale(brown_player_imgs_left[0], (64, 86))
-
-
-# Player right movement
-brown_player_imgs_right = []
-brown_player_imgs_right.append(pygame.image.load('Assets/Images/Player/Brown/brown_right_walk/step1.png'))
-brown_player_imgs_right[0] = pygame.transform.smoothscale(brown_player_imgs_right[0], (64, 86))
-
-# Player down movement
-brown_player_imgs_down = []
-brown_player_imgs_down.append(pygame.image.load('Assets/Images/Player/Brown/brown_down_walk/step1.png'))
-brown_player_imgs_down[0] = pygame.transform.smoothscale(brown_player_imgs_down[0], (64, 86))
-
-# Player Up movement
-brown_player_imgs_up = []
-brown_player_imgs_up.append(pygame.image.load('Assets/Images/Player/Brown/brown_up_walk/step1.png'))
-brown_player_imgs_up[0] = pygame.transform.smoothscale(brown_player_imgs_up[0], (64, 86))
-    
+brown_player_imgs_left = _load_walk('Brown', 'brown', 'left_walk', 17)
+brown_player_imgs_right = _load_walk('Brown', 'brown', 'right_walk', 17)
+brown_player_imgs_down = _load_walk('Brown', 'brown', 'down_walk', 18)
+brown_player_imgs_up = _load_walk('Brown', 'brown', 'up_walk', 17)
 brown_player_imgs_dead = pygame.image.load('Assets/Images/Player/Dead/Deadbrown.png')
 
 
 # Pink Player Movements-----------------
-# Player left movement
-pink_player_imgs_left = []
-pink_player_imgs_left.append(pygame.image.load('Assets/Images/Player/Pink/pink_left_walk/step1.png'))
-pink_player_imgs_left[0] = pygame.transform.smoothscale(pink_player_imgs_left[0], (64, 86))
-
-
-# Player right movement
-pink_player_imgs_right = []
-pink_player_imgs_right.append(pygame.image.load('Assets/Images/Player/Pink/pink_right_walk/step1.png'))
-pink_player_imgs_right[0] = pygame.transform.smoothscale(pink_player_imgs_right[0], (64, 86))
-
-# Player down movement
-pink_player_imgs_down = []
-pink_player_imgs_down.append(pygame.image.load('Assets/Images/Player/Pink/pink_down_walk/step1.png'))
-pink_player_imgs_down[0] = pygame.transform.smoothscale(pink_player_imgs_down[0], (64, 86))
-
-# Player Up movement
-pink_player_imgs_up = []
-pink_player_imgs_up.append(pygame.image.load('Assets/Images/Player/Pink/pink_up_walk/step1.png'))
-pink_player_imgs_up[0] = pygame.transform.smoothscale(pink_player_imgs_up[0], (64, 86))
-    
+pink_player_imgs_left = _load_walk('Pink', 'pink', 'left_walk', 17)
+pink_player_imgs_right = _load_walk('Pink', 'pink', 'right_walk', 17)
+pink_player_imgs_down = _load_walk('Pink', 'pink', 'down_walk', 18)
+pink_player_imgs_up = _load_walk('Pink', 'pink', 'up_walk', 17)
 pink_player_imgs_dead = pygame.image.load('Assets/Images/Player/Dead/Deadpink.png')
 
 
 # Purple Player Movements-----------------
-# Player left movement
-purple_player_imgs_left = []
-purple_player_imgs_left.append(pygame.image.load('Assets/Images/Player/Purple/Purple_left_walk/step1.png'))
-purple_player_imgs_left[0] = pygame.transform.smoothscale(purple_player_imgs_left[0], (64, 86))
-
-
-# Player right movement
-purple_player_imgs_right = []
-purple_player_imgs_right.append(pygame.image.load('Assets/Images/Player/Purple/Purple_right_walk/step1.png'))
-purple_player_imgs_right[0] = pygame.transform.smoothscale(purple_player_imgs_right[0], (64, 86))
-
-# Player down movement
-purple_player_imgs_down = []
-purple_player_imgs_down.append(pygame.image.load('Assets/Images/Player/Purple/Purple_down_walk/step1.png'))
-purple_player_imgs_down[0] = pygame.transform.smoothscale(purple_player_imgs_down[0], (64, 86))
-
-# Player Up movement
-purple_player_imgs_up = []
-purple_player_imgs_up.append(pygame.image.load('Assets/Images/Player/Purple/Purple_up_walk/step1.png'))
-purple_player_imgs_up[0] = pygame.transform.smoothscale(purple_player_imgs_up[0], (64, 86))
-    
+purple_player_imgs_left = _load_walk('Purple', 'purple', 'left_walk', 17)
+purple_player_imgs_right = _load_walk('Purple', 'purple', 'right_walk', 17)
+purple_player_imgs_down = _load_walk('Purple', 'purple', 'down_walk', 18)
+purple_player_imgs_up = _load_walk('Purple', 'purple', 'up_walk', 17)
 purple_player_imgs_dead = pygame.image.load('Assets/Images/Player/Dead/DeadPurple.png')
 
 
 # White Player Movements-----------------
-# Player left movement
-white_player_imgs_left = []
-white_player_imgs_left.append(pygame.image.load('Assets/Images/Player/White/White_left_walk/step1.png'))
-white_player_imgs_left[0] = pygame.transform.smoothscale(white_player_imgs_left[0], (64, 86))
-
-
-# Player right movement
-white_player_imgs_right = []
-white_player_imgs_right.append(pygame.image.load('Assets/Images/Player/White/White_right_walk/step1.png'))
-white_player_imgs_right[0] = pygame.transform.smoothscale(white_player_imgs_right[0], (64, 86))
-
-# Player down movement
-white_player_imgs_down = []
-white_player_imgs_down.append(pygame.image.load('Assets/Images/Player/White/White_down_walk/step1.png'))
-white_player_imgs_down[0] = pygame.transform.smoothscale(white_player_imgs_down[0], (64, 86))
-
-# Player Up movement
-white_player_imgs_up = []
-white_player_imgs_up.append(pygame.image.load('Assets/Images/Player/White/White_up_walk/step1.png'))
-white_player_imgs_up[0] = pygame.transform.smoothscale(white_player_imgs_up[0], (64, 86))
-    
+white_player_imgs_left = _load_walk('White', 'white', 'left_walk', 17)
+white_player_imgs_right = _load_walk('White', 'white', 'right_walk', 17)
+white_player_imgs_down = _load_walk('White', 'white', 'down_walk', 18)
+white_player_imgs_up = _load_walk('White', 'white', 'up_walk', 17)
 white_player_imgs_dead = pygame.image.load('Assets/Images/Player/Dead/DeadWhite.png')
+
+
+def _load_ghost(colour_dir, colour_slug):
+    ghost_left = pygame.image.load(f'Assets/Images/Player/{colour_dir}/{colour_slug}_ghost/step1_left.png')
+    ghost_right = pygame.image.load(f'Assets/Images/Player/{colour_dir}/{colour_slug}_ghost/step1_right.png')
+    return (
+        pygame.transform.smoothscale(ghost_left, (64, 86)),
+        pygame.transform.smoothscale(ghost_right, (64, 86)),
+    )
+
+
+black_player_imgs_ghost_left, black_player_imgs_ghost_right = _load_ghost('Black', 'black')
+brown_player_imgs_ghost_left, brown_player_imgs_ghost_right = _load_ghost('Brown', 'brown')
+pink_player_imgs_ghost_left, pink_player_imgs_ghost_right = _load_ghost('Pink', 'pink')
+purple_player_imgs_ghost_left, purple_player_imgs_ghost_right = _load_ghost('Purple', 'purple')
+white_player_imgs_ghost_left, white_player_imgs_ghost_right = _load_ghost('White', 'white')
+
+black_player_emergency_meeting = pygame.image.load('Assets/Images/Alerts/emergency_meeting_black.png')
+black_player_emergency_meeting_report = pygame.image.load('Assets/Images/Alerts/report_dead_body_black.png')
+brown_player_emergency_meeting = pygame.image.load('Assets/Images/Alerts/emergency_meeting_brown.png')
+brown_player_emergency_meeting_report = pygame.image.load('Assets/Images/Alerts/report_dead_body_brown.png')
+pink_player_emergency_meeting = pygame.image.load('Assets/Images/Alerts/emergency_meeting_pink.png')
+pink_player_emergency_meeting_report = pygame.image.load('Assets/Images/Alerts/report_dead_body_pink.png')
+purple_player_emergency_meeting = pygame.image.load('Assets/Images/Alerts/emergency_meeting_purple.png')
+purple_player_emergency_meeting_report = pygame.image.load('Assets/Images/Alerts/report_dead_body_purple.png')
+white_player_emergency_meeting = pygame.image.load('Assets/Images/Alerts/emergency_meeting_white.png')
+white_player_emergency_meeting_report = pygame.image.load('Assets/Images/Alerts/report_dead_body_white.png')
+
+
+def _colour_set(left, right, down, up, dead, ghost_left, ghost_right,
+                meeting, meeting_report, slug, eject_index):
+    return {
+        "left": left,
+        "right": right,
+        "down": down,
+        "up": up,
+        "dead": dead,
+        "ghost_left": ghost_left,
+        "ghost_right": ghost_right,
+        "meeting": meeting,
+        "meeting_report": meeting_report,
+        "meeting_ref": f"{slug}_player_emergency_meeting",
+        "meeting_report_ref": f"{slug}_player_emergency_meeting_report",
+        "eject_ref": f"{slug}_player_imgs_right[{eject_index}]",
+    }
+
+
+COLOUR_SETS = {
+    "Red": _colour_set(red_player_imgs_left, red_player_imgs_right, red_player_imgs_down, red_player_imgs_up,
+                       red_player_imgs_dead, red_player_imgs_ghost_left, red_player_imgs_ghost_right,
+                       red_player_emergency_meeting, red_player_emergency_meeting_report, "red", 9),
+    "Blue": _colour_set(blue_player_imgs_left, blue_player_imgs_right, blue_player_imgs_down, blue_player_imgs_up,
+                        blue_player_imgs_dead, blue_player_imgs_ghost_left, blue_player_imgs_ghost_right,
+                        blue_player_emergency_meeting, blue_player_emergency_meeting_report, "blue", 9),
+    "Orange": _colour_set(orange_player_imgs_left, orange_player_imgs_right, orange_player_imgs_down, orange_player_imgs_up,
+                          orange_player_imgs_dead, orange_player_imgs_ghost_left, orange_player_imgs_ghost_right,
+                          orange_player_emergency_meeting, orange_player_emergency_meeting_report, "orange", 9),
+    "Yellow": _colour_set(yellow_player_imgs_left, yellow_player_imgs_right, yellow_player_imgs_down, yellow_player_imgs_up,
+                          yellow_player_imgs_dead, yellow_player_imgs_ghost_left, yellow_player_imgs_ghost_right,
+                          yellow_player_emergency_meeting, yellow_player_emergency_meeting_report, "yellow", 9),
+    "Green": _colour_set(green_player_imgs_left, green_player_imgs_right, green_player_imgs_down, green_player_imgs_up,
+                         green_player_imgs_dead, green_player_imgs_ghost_left, green_player_imgs_ghost_right,
+                         green_player_emergency_meeting, green_player_emergency_meeting_report, "green", 9),
+    "Black": _colour_set(black_player_imgs_left, black_player_imgs_right, black_player_imgs_down, black_player_imgs_up,
+                         black_player_imgs_dead, black_player_imgs_ghost_left, black_player_imgs_ghost_right,
+                         black_player_emergency_meeting, black_player_emergency_meeting_report, "black", 0),
+    "Brown": _colour_set(brown_player_imgs_left, brown_player_imgs_right, brown_player_imgs_down, brown_player_imgs_up,
+                         brown_player_imgs_dead, brown_player_imgs_ghost_left, brown_player_imgs_ghost_right,
+                         brown_player_emergency_meeting, brown_player_emergency_meeting_report, "brown", 0),
+    "Pink": _colour_set(pink_player_imgs_left, pink_player_imgs_right, pink_player_imgs_down, pink_player_imgs_up,
+                        pink_player_imgs_dead, pink_player_imgs_ghost_left, pink_player_imgs_ghost_right,
+                        pink_player_emergency_meeting, pink_player_emergency_meeting_report, "pink", 0),
+    "Purple": _colour_set(purple_player_imgs_left, purple_player_imgs_right, purple_player_imgs_down, purple_player_imgs_up,
+                          purple_player_imgs_dead, purple_player_imgs_ghost_left, purple_player_imgs_ghost_right,
+                          purple_player_emergency_meeting, purple_player_emergency_meeting_report, "purple", 0),
+    "White": _colour_set(white_player_imgs_left, white_player_imgs_right, white_player_imgs_down, white_player_imgs_up,
+                         white_player_imgs_dead, white_player_imgs_ghost_left, white_player_imgs_ghost_right,
+                         white_player_emergency_meeting, white_player_emergency_meeting_report, "white", 0),
+}

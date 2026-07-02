@@ -17,8 +17,10 @@ TICK = 0.05  # seconds -> 20 broadcasts per second
 
 # Lobby gate: don't let the game start until enough players have connected,
 # then give a short countdown so people can see it coming before it starts.
-LOBBY_MIN_PLAYERS = 2
+LOBBY_MIN_PLAYERS = 2  # keep at 2 for local testing; raise to 5+ for classroom demo if needed
 LOBBY_COUNTDOWN_SECONDS = 10
+MAX_PLAYERS = 9
+SERVER_COLOURS = ["Red", "Blue", "Orange", "Yellow", "Green", "Black", "Brown", "Pink", "Purple", "White"]
 
 print("Server Address: " + socket.gethostbyname(socket.gethostname()))
 
@@ -48,18 +50,34 @@ class Minion:
     self.emergency_meeting_img_sync_report = None
     self.victim_id_report = 0
     self.got_reported = False
-    self.eject_sync = False
+    self.eject_sync = 0
     self.eject_img = None
 
 
 minionmap = {}          # player_id -> Minion
 conn_buf = {}           # client socket -> bytearray of unparsed received bytes
 conn_id = {}            # client socket -> player_id
+imposter_ids = []
 
 
 def frame(data):
   """Prefix a pickled payload with its 4-byte big-endian length."""
   return len(data).to_bytes(4, 'big') + data
+
+
+def frame_message(message):
+  return frame(pickle.dumps(message))
+
+
+def assign_colour(player_id, preferred):
+  used = {m.player_colour for pid, m in minionmap.items()
+          if pid != player_id and m.player_colour is not None}
+  if preferred in SERVER_COLOURS and preferred not in used:
+    return preferred
+  for colour in SERVER_COLOURS:
+    if colour not in used:
+      return colour
+  return preferred if preferred in SERVER_COLOURS else SERVER_COLOURS[0]
 
 
 def apply_update(arr):
@@ -84,12 +102,13 @@ def apply_update(arr):
   m.right_img_index = arr[8]
   m.up_img_index = arr[9]
   m.down_img_index = arr[10]
-  m.player_colour = arr[11]
+  if m.player_colour is None and arr[11] is not None:
+    m.player_colour = assign_colour(player_id, arr[11])
   m.tasks_completed = arr[12]
   m.sabotagelights_sync = arr[13]
   m.sabotagereactor_sync = arr[14]
   m.victim_id = arr[15]
-  m.imposter = arr[16]
+  m.imposter = player_id in imposter_ids
   m.emergency_sync = arr[17]
   m.voted = arr[18]
   m.got_votes = arr[19]
@@ -124,12 +143,12 @@ def build_snapshot():
 
 
 def build_lobby_state(count, lobby_deadline, game_started, now):
-  """['lobby state', connected_count, min_players, seconds_left_or_None, game_started]"""
+  """['lobby state', count, min_players, seconds_left_or_None, game_started, imposter_ids]"""
   seconds_left = None
   if lobby_deadline is not None and not game_started:
     seconds_left = max(0, int(round(lobby_deadline - now)))
-  msg = ['lobby state', count, LOBBY_MIN_PLAYERS, seconds_left, game_started]
-  return frame(pickle.dumps(msg))
+  msg = ['lobby state', count, LOBBY_MIN_PLAYERS, seconds_left, game_started, imposter_ids]
+  return frame_message(msg)
 
 
 def drop_client(sock):
@@ -145,6 +164,7 @@ def drop_client(sock):
 
 
 def main():
+  global imposter_ids
   server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
   server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
   server.bind(('', PORT))
@@ -166,22 +186,33 @@ def main():
 
     for sock in rlist:
       if sock is server:
-        # New connection: register a player and hand it its id.
+        # New connection: register a player unless the lobby is full or the
+        # match has already started.
         try:
           conn, addr = server.accept()
         except Exception:
+          continue
+        deny_reason = None
+        if game_started:
+          deny_reason = 'started'
+        elif len(minionmap) >= MAX_PLAYERS:
+          deny_reason = 'full'
+        if deny_reason is not None:
+          try:
+            conn.sendall(frame_message(['join denied', deny_reason]))
+            time.sleep(0.05)
+          except Exception:
+            pass
+          conn.close()
           continue
         conn.setblocking(False)
         clients.append(conn)
         conn_buf[conn] = bytearray()
         player_id = random.randint(1000, 1000000)
+        while player_id in minionmap:
+          player_id = random.randint(1000, 1000000)
         minionmap[player_id] = Minion(player_id)
         conn_id[conn] = player_id
-        try:
-          conn.sendall(frame(pickle.dumps(['id update', player_id])))
-        except Exception:
-          clients.remove(conn)
-          drop_client(conn)
         continue
 
       # Existing client: read whatever is available.
@@ -205,7 +236,15 @@ def main():
         msg = bytes(buf[4:4 + n])
         del buf[:4 + n]
         try:
-          apply_update(pickle.loads(msg))
+          arr = pickle.loads(msg)
+          if arr and arr[0] == 'hello':
+            pid = conn_id.get(sock)
+            if pid in minionmap:
+              preferred = arr[1] if len(arr) > 1 else None
+              minionmap[pid].player_colour = assign_colour(pid, preferred)
+              sock.sendall(frame_message(['id update', pid, minionmap[pid].player_colour]))
+          elif arr and arr[0] == 'position update':
+            apply_update(arr)
         except Exception:
           pass
 
@@ -221,12 +260,18 @@ def main():
         # started and skipping straight to gameplay for whoever connects next.
         game_started = False
         lobby_deadline = None
+        imposter_ids = []
       elif not game_started:
         if lobby_deadline is None and count >= LOBBY_MIN_PLAYERS:
           lobby_deadline = now + LOBBY_COUNTDOWN_SECONDS
         elif lobby_deadline is not None and count < LOBBY_MIN_PLAYERS:
           lobby_deadline = None  # someone left before the countdown finished -- cancel it
         elif lobby_deadline is not None and now >= lobby_deadline:
+          ids = list(minionmap.keys())
+          imposter_count = 2 if count >= 7 else 1
+          imposter_ids = random.sample(ids, min(imposter_count, len(ids)))
+          for pid, minion in minionmap.items():
+            minion.imposter = pid in imposter_ids
           game_started = True
 
       payload = build_snapshot() + build_lobby_state(count, lobby_deadline, game_started, now)

@@ -91,7 +91,6 @@ class Game:
         self.gamemode = None
         self.sabotagecritical = False
         self.serveraddress = ""
-        self.player_highest_id = 0
         self.emergency_img_sync = None
         self.emergency_img_sync_report = None
         self.eject = False
@@ -101,6 +100,15 @@ class Game:
         self.eject_pos = 0
         self.timer = pygame.time.get_ticks()
         self.timer_start = pygame.time.get_ticks()
+        self.dialog_text = None
+        self.dialog_until = 0
+        self.case_brief_until = 0
+        self.vote_row_rects = []
+        self._meeting_tally_resolved = False
+        self._dialog_last_night = self.night
+        self._dialog_last_reactor = self.night_reactor
+        self._net_closed = False
+        self.join_denied_reason = None
 
         self.player_pos = [(3288, 873), (3046, 791), (3046, 651), (3563, 653), (3563, 762), (2968, 530), (3566, 553)]
         # Vent Locations
@@ -140,16 +148,12 @@ class Game:
         self.pause_quit_button_status = False
         self.emerg_meeting_button_status = False
         self.emerg_meeting_report_status = False
+        self._dialog_last_report = bool(self.emerg_meeting_report_status)
         self.skip_meeting_button_status = False
         self.imposter_among_us_status = True
         self.kill_victim_anim = False
         self.kill_victim_anim_index = -1
         self.emergency_meeting_index = 0
-        self.emerg_vote_red_checkbox_tick_status = False
-        self.emerg_vote_blue_checkbox_tick_status = False
-        self.emerg_vote_green_checkbox_tick_status = False
-        self.emerg_vote_orange_checkbox_tick_status = False
-        self.emerg_vote_yellow_checkbox_tick_status = False
         # Navigation_task checks
         self.stabilize_steering_button_status = False
         self.stabilize_steering_window_status = False
@@ -349,34 +353,35 @@ class Game:
         self.light_bulb_icon_dim = pg.image.load("Assets/Images/UI/light_bulb_icon_dim.png").convert_alpha()
         self.light_bulb_icon_dim = pg.transform.smoothscale(self.light_bulb_icon_dim, (75, 90)).convert_alpha()
 
-        self.invsible_player_image = pg.image.load("Assets\Images\Player\invisble3.png").convert_alpha()
+        self.invsible_player_image = pg.image.load("Assets/Images/Player/invisble3.png").convert_alpha()
         self.invsible_player_image = pygame.transform.scale(self.invsible_player_image, (64, 86)).convert_alpha()
-        self.imposter_among_us_img = pygame.image.load('Assets\Images\Menu\imposteramongus.png').convert_alpha()
+        self.imposter_among_us_img = pygame.image.load('Assets/Images/Menu/imposteramongus.png').convert_alpha()
         self.kill_victim_anim_img = []
         for i in range(1, 19):
             self.kill_victim_anim_img.append(pygame.image.load('Assets/Images/Alerts/' + 'kill' + str(i) + '.png').convert_alpha())
         self.cafe_comp_img = pygame.image.load(
-            'Assets\Images\Tasks\Become Imposter\cafe_computer_base.png').convert_alpha()
-        self.cafe_comp_check_img = pygame.image.load('Assets\Images\Tasks\Become Imposter\check.png').convert_alpha()
-        self.chat_img = pygame.image.load('Assets\Images\Meeting\chat.png').convert_alpha()
-        self.vote_img = pygame.image.load('Assets\Images\Meeting\e_vote_base.png').convert_alpha()
-        self.vote_tick_img = pygame.image.load('Assets\Images\Meeting\select_vote.png').convert_alpha()
-        self.chat_img_dead = pygame.image.load('Assets\Images\Meeting\chat_dead.png').convert_alpha()
-        self.vote_img_dead = pygame.image.load('Assets\Images\Meeting\e_vote_base_dead.png').convert_alpha()
-        self.eject_screen_img = pygame.image.load('Assets\Images\Alerts\eject.png').convert_alpha()
+            'Assets/Images/Tasks/Become Imposter/cafe_computer_base.png').convert_alpha()
+        self.cafe_comp_check_img = pygame.image.load('Assets/Images/Tasks/Become Imposter/check.png').convert_alpha()
+        self.chat_img = pygame.image.load('Assets/Images/Meeting/chat.png').convert_alpha()
+        self.vote_img = pygame.image.load('Assets/Images/Meeting/e_vote_base.png').convert_alpha()
+        self.vote_tick_img = pygame.image.load('Assets/Images/Meeting/select_vote.png').convert_alpha()
+        self.chat_img_dead = pygame.image.load('Assets/Images/Meeting/chat_dead.png').convert_alpha()
+        self.vote_img_dead = pygame.image.load('Assets/Images/Meeting/e_vote_base_dead.png').convert_alpha()
+        self.skip_vote_img = pygame.image.load('Assets/Images/Meeting/skip_vote.png').convert_alpha()
+        self.eject_screen_img = pygame.image.load('Assets/Images/Alerts/eject.png').convert_alpha()
         self.navigation_screen_img = pygame.image.load(
-            'Assets\Images\Tasks\Stabilize Steering\stabilizer_base.png').convert_alpha()
+            'Assets/Images/Tasks/Stabilize Steering/stabilizer_base.png').convert_alpha()
         self.full_garbage_screen_img = pygame.image.load(
-            'Assets\Images\Tasks\Empty Garbage\garbage_base_full.png').convert_alpha()
+            'Assets/Images/Tasks/Empty Garbage/garbage_base_full.png').convert_alpha()
         self.empty_garbage_screen_img = pygame.image.load(
-            'Assets\Images\Tasks\Empty Garbage\garbage_base_empty.png').convert_alpha()
+            'Assets/Images/Tasks/Empty Garbage/garbage_base_empty.png').convert_alpha()
         self.reboot_wifi_screen_img = pygame.image.load(
-            'Assets\Images\Tasks\Reboot Wifi\panel_wifi_bg.png').convert_alpha()
-        self.wifi_on_img = pygame.image.load('Assets\Images\Tasks\Reboot Wifi\wifi_on.png').convert_alpha()
+            'Assets/Images/Tasks/Reboot Wifi/panel_wifi_bg.png').convert_alpha()
+        self.wifi_on_img = pygame.image.load('Assets/Images/Tasks/Reboot Wifi/wifi_on.png').convert_alpha()
         self.wifi_liver_down_img = pygame.image.load(
-            'Assets\Images\Tasks\Reboot Wifi\panel_wifi-lever.png').convert_alpha()
+            'Assets/Images/Tasks/Reboot Wifi/panel_wifi-lever.png').convert_alpha()
         self.electricity_wire_img = pygame.image.load(
-            'Assets\Images\Tasks\Fix Wiring\electricity_wire_base1.png').convert_alpha()
+            'Assets/Images/Tasks/Fix Wiring/electricity_wire_base1.png').convert_alpha()
         self.electricity_wire_red_img = pygame.image.load('Assets/Images/Tasks/Fix Wiring/red_wire.png').convert_alpha()
         self.electricity_wire_blue_img = pygame.image.load(
             'Assets/Images/Tasks/Fix Wiring/blue_wire.png').convert_alpha()
@@ -413,21 +418,6 @@ class Game:
 
         """ DIFFERENT BUTTONS FOR DIFFERENT TASKS - OPEN HERE"""
 
-        self.emerg_red_checkbox = Button(self, None, None, 35, 35, WIDTH / 2 - 95, 223, "chkbox_red_btn",
-                                         Transparent_Black, Transparent_Black, "Assets/Images/Meeting/checkbox.png", 35,
-                                         35, 255)
-        self.emerg_orange_checkbox = Button(self, None, None, 35, 35, WIDTH / 1.5 - 30, 223, "chkbox_orange_btn",
-                                            Transparent_Black, Transparent_Black, "Assets/Images/Meeting/checkbox.png",
-                                            35, 35, 255)
-        self.emerg_green_checkbox = Button(self, None, None, 35, 35, WIDTH / 2 - 95, 276, "chkbox_green_btn",
-                                           Transparent_Black, Transparent_Black, "Assets/Images/Meeting/checkbox.png",
-                                           35, 35, 255)
-        self.emerg_yellow_checkbox = Button(self, None, None, 35, 35, WIDTH / 1.5 - 30, 276, "chkbox_yellow_btn",
-                                            Transparent_Black, Transparent_Black, "Assets/Images/Meeting/checkbox.png",
-                                            35, 35, 255)
-        self.emerg_blue_checkbox = Button(self, None, None, 35, 35, WIDTH / 2 - 95, 329, "chkbox_blue_btn",
-                                          Transparent_Black, Transparent_Black, "Assets/Images/Meeting/checkbox.png",
-                                          35, 35, 255)
         self.open_cafe_comp_check_btn = Button(self, None, None, 189, 191, WIDTH / 3 + 110, 200, "cafe_comp_check_btn",
                                                Transparent_Black,
                                                Transparent_Black,
@@ -772,8 +762,8 @@ class Game:
     # CLEAR ASTEROIDS FUNCTIONS
     def show_score(self, x, y):
         self.screen.blit(self.score_box_img, (x, y))
-        GAME_FONT = pg.font.Font(FONT, 20)
-        self.score = GAME_FONT.render("Asteroids Left: " + str(self.score_value), True, BLACK)
+        GAME_FONT = vn_font(19)
+        self.score = GAME_FONT.render("Tin giả còn lại: " + str(self.score_value), True, BLACK)
         self.screen.blit(self.score, (x+30, y+10))
 
     def display_starship(self, x, y, alignment):
@@ -913,22 +903,59 @@ class Game:
 
     def display_vote(self):
         if self.player.alive_status == True:
-            self.screen.blit(self.vote_img, (WIDTH / 4 - 25, HEIGHT / 6))
-            self.emerg_red_checkbox.draw_Image(self.screen)
-            self.emerg_orange_checkbox.draw_Image(self.screen)
-            self.emerg_green_checkbox.draw_Image(self.screen)
-            self.emerg_yellow_checkbox.draw_Image(self.screen)
-            self.emerg_blue_checkbox.draw_Image(self.screen)
-            if self.emerg_vote_red_checkbox_tick_status:
-                self.display_vote_tick(WIDTH / 2 - 94, 223)
-            if self.emerg_vote_orange_checkbox_tick_status:
-                self.display_vote_tick(WIDTH / 1.5 - 29, 223)
-            if self.emerg_vote_green_checkbox_tick_status:
-                self.display_vote_tick(WIDTH / 2 - 94, 276)
-            if self.emerg_vote_yellow_checkbox_tick_status:
-                self.display_vote_tick(WIDTH / 1.5 - 29, 276)
-            if self.emerg_vote_blue_checkbox_tick_status:
-                self.display_vote_tick(WIDTH / 2 - 94, 329)
+            self.vote_row_rects = []
+            panel_rect = pg.Rect(WIDTH / 2 - 360, HEIGHT / 6, 720, 440)
+            panel = pg.Surface(panel_rect.size, pg.SRCALPHA)
+            panel.fill((12, 16, 24, 232))
+            self.screen.blit(panel, panel_rect)
+            pg.draw.rect(self.screen, WHITE, panel_rect, 2)
+
+            title = vn_font(30).render("PHIÊN BIỂU QUYẾT", True, WHITE)
+            self.screen.blit(title, title.get_rect(center=(panel_rect.centerx, panel_rect.top + 34)))
+
+            row_h = 30
+            gap = 5
+            y = panel_rect.top + 70
+            text_font = vn_font(19)
+            small_font = vn_font(15)
+            for pid, candidate in self.get_vote_candidates():
+                row = pg.Rect(panel_rect.left + 42, y, panel_rect.width - 84, row_h)
+                self.vote_row_rects.append((row, pid))
+                fill = (35, 48, 63) if self.player.voted == pid else (22, 28, 38)
+                pg.draw.rect(self.screen, fill, row)
+                pg.draw.rect(self.screen, (102, 120, 138), row, 1)
+
+                sprite = pg.transform.smoothscale(COLOUR_SETS[candidate.player_colour]["down"][0], (24, 30))
+                self.screen.blit(sprite, (row.left + 8, row.top))
+                colour_name = COLOR_DISPLAY_NAMES.get(candidate.player_colour, candidate.player_colour)
+                label = f"Cán bộ {colour_name}  #{pid}"
+                text = text_font.render(label, True, WHITE)
+                self.screen.blit(text, (row.left + 44, row.top + 4))
+                if pid == self.player.player_id:
+                    you = small_font.render("Bạn", True, YELLOW)
+                    self.screen.blit(you, (row.right - 92, row.top + 8))
+
+                checkbox = pg.Rect(row.right - 34, row.top + 5, 22, 22)
+                pg.draw.rect(self.screen, WHITE, checkbox, 2)
+                if self.player.voted == pid:
+                    tick = pg.transform.smoothscale(self.vote_tick_img, (24, 24))
+                    self.screen.blit(tick, (checkbox.x - 1, checkbox.y - 1))
+                y += row_h + gap
+
+            skip_row = pg.Rect(panel_rect.left + 42, y + 4, panel_rect.width - 84, row_h)
+            self.vote_row_rects.append((skip_row, "SKIP"))
+            fill = (35, 48, 63) if self.player.voted == "SKIP" else (22, 28, 38)
+            pg.draw.rect(self.screen, fill, skip_row)
+            pg.draw.rect(self.screen, (102, 120, 138), skip_row, 1)
+            skip_icon = pg.transform.smoothscale(self.skip_vote_img, (28, 28))
+            self.screen.blit(skip_icon, (skip_row.left + 8, skip_row.top + 2))
+            skip_text = text_font.render("Bỏ qua biểu quyết", True, WHITE)
+            self.screen.blit(skip_text, (skip_row.left + 48, skip_row.top + 4))
+            checkbox = pg.Rect(skip_row.right - 34, skip_row.top + 5, 22, 22)
+            pg.draw.rect(self.screen, WHITE, checkbox, 2)
+            if self.player.voted == "SKIP":
+                tick = pg.transform.smoothscale(self.vote_tick_img, (24, 24))
+                self.screen.blit(tick, (checkbox.x - 1, checkbox.y - 1))
         else:
             self.screen.blit(self.vote_img_dead, (WIDTH / 4 - 25, HEIGHT / 6))
 
@@ -943,7 +970,7 @@ class Game:
 
     def display_eject_alert(self, x):
         self.screen.blit(self.eject_screen_img, (0, 0))
-        self.board.draw_ejected_text(self.eject_colour)
+        self.board.draw_ejected_text(self.eject_colour, self.get_eject_role_text(self.eject_colour))
         self.screen.blit(eval(self.eject_img), (x, HEIGHT / 3))
 
     def draw_health(self):
@@ -968,6 +995,163 @@ class Game:
         self.imposter_among_us_img = pg.transform.smoothscale(self.imposter_among_us_img, (WIDTH, HEIGHT))
         self.screen.blit(self.imposter_among_us_img, (0, 0))
 
+    def show_dialog(self, text, seconds=4):
+        self.dialog_text = text
+        self.dialog_until = pygame.time.get_ticks() + int(seconds * 1000)
+
+    def display_dialog(self):
+        if not self.dialog_text or pygame.time.get_ticks() > self.dialog_until:
+            return
+        panel = pg.Surface((WIDTH - 180, 112), pg.SRCALPHA)
+        panel.fill((0, 0, 0, 210))
+        rect = panel.get_rect(midbottom=(WIDTH / 2, HEIGHT - 24))
+        self.screen.blit(panel, rect)
+        self.board.draw_wrapped_text(self.screen, self.dialog_text, vn_font(22), WHITE,
+                                     rect.inflate(-42, -28), line_spacing=5)
+
+    def start_case_brief(self, seconds=6):
+        self.case_brief_until = pygame.time.get_ticks() + int(seconds * 1000)
+
+    def display_case_brief(self):
+        if pygame.time.get_ticks() > self.case_brief_until:
+            return
+        panel = pg.Surface((820, 292), pg.SRCALPHA)
+        panel.fill((0, 0, 0, 225))
+        rect = panel.get_rect(center=(WIDTH / 2, HEIGHT / 2))
+        self.screen.blit(panel, rect)
+        title_font = vn_font(34)
+        body_font = vn_font(22)
+        role_font = vn_font(25)
+        title = title_font.render("HỒ SƠ VỤ VIỆC", True, YELLOW)
+        self.screen.blit(title, title.get_rect(center=(rect.centerx, rect.top + 38)))
+        self.board.draw_wrapped_text(self.screen, CASE_BRIEF, body_font, WHITE,
+                                     pg.Rect(rect.left + 42, rect.top + 76, rect.width - 84, 130), line_spacing=5)
+        role = ROLE_IMPOSTER if self.player.imposter else ROLE_CREW
+        role_text = role_font.render("Vai trò của bạn: " + role, True, RED if self.player.imposter else GREEN)
+        self.screen.blit(role_text, role_text.get_rect(center=(rect.centerx, rect.bottom - 42)))
+
+    def check_state_dialogs(self):
+        if self.night != self._dialog_last_night:
+            self.show_dialog(SYSTEM_DIALOGS["lights_off" if self.night else "lights_on"])
+        if self.night_reactor != self._dialog_last_reactor:
+            self.show_dialog(SYSTEM_DIALOGS["reactor_on" if self.night_reactor else "reactor_off"])
+        report_current = bool(self.emerg_meeting_report_status)
+        if report_current and not self._dialog_last_report:
+            self.show_dialog(SYSTEM_DIALOGS["report"])
+        self._dialog_last_night = self.night
+        self._dialog_last_reactor = self.night_reactor
+        self._dialog_last_report = report_current
+
+    def get_player_by_id(self, player_id):
+        if player_id == self.player.player_id:
+            return self.player
+        return self.Players.get(player_id)
+
+    def get_vote_candidates(self):
+        candidates = {}
+        if hasattr(self, "Players"):
+            candidates.update(self.Players)
+        if hasattr(self, "player"):
+            candidates[self.player.player_id] = self.player
+        return [(pid, p) for pid, p in sorted(candidates.items()) if p.alive_status]
+
+    def get_eject_role_text(self, colour):
+        players = list(getattr(self, "Players", {}).values())
+        if hasattr(self, "player") and self.player not in players:
+            players.append(self.player)
+        for candidate in players:
+            if candidate.player_colour == colour:
+                if candidate.imposter:
+                    return "Quyết định chính xác. Một cán bộ tham nhũng đã bị phát hiện."
+                return "Quyết định sai lầm. Một cán bộ liêm chính đã bị đình chỉ nhầm."
+        return None
+
+    def get_eject_payload(self):
+        if self.eject_img is None:
+            return None
+        return (self.eject_img, self.eject_colour)
+
+    @staticmethod
+    def unpack_eject_payload(payload, fallback_colour):
+        if isinstance(payload, tuple) and len(payload) == 2:
+            return payload
+        return payload, fallback_colour
+
+    def apply_eject_state(self, eject_img, eject_colour):
+        self.eject = True
+        self.eject_img = eject_img
+        self.eject_colour = eject_colour
+        for candidate in list(getattr(self, "Players", {}).values()) + [self.player]:
+            if candidate.player_colour == eject_colour:
+                candidate.pos_corpse.x = candidate.pos.x
+                candidate.pos_corpse.y = candidate.pos.y
+                candidate.alive_status = False
+                candidate.got_reported = True
+                candidate.image = self.invsible_player_image
+                break
+        self.timer_start = pygame.time.get_ticks()
+
+    def reset_meeting_votes(self):
+        for player in getattr(self, "Players", {}).values():
+            player.got_votes = 0
+            player.voted = None
+        self.player.got_votes = 0
+        self.player.voted = None
+        self.voters = []
+        self.vote_row_rects = []
+        self._meeting_tally_resolved = False
+
+    def resolve_meeting_votes(self):
+        if self._meeting_tally_resolved:
+            return
+        self._meeting_tally_resolved = True
+        vote_counts = {}
+        skip_votes = 0
+        for voter_id, voter in self.get_vote_candidates():
+            vote = voter.voted
+            if vote == "SKIP":
+                skip_votes += 1
+            elif isinstance(vote, int):
+                target = self.get_player_by_id(vote)
+                if target is not None and target.alive_status:
+                    vote_counts[vote] = vote_counts.get(vote, 0) + 1
+        if not vote_counts:
+            self.show_dialog(SYSTEM_DIALOGS["no_eject"])
+            return
+        highest = max(vote_counts.values())
+        winners = [pid for pid, count in vote_counts.items() if count == highest]
+        if len(winners) != 1 or highest <= skip_votes:
+            self.show_dialog(SYSTEM_DIALOGS["no_eject"])
+            return
+        target = self.get_player_by_id(winners[0])
+        if target is None:
+            self.show_dialog(SYSTEM_DIALOGS["no_eject"])
+            return
+        target.pos_corpse.x = target.pos.x
+        target.pos_corpse.y = target.pos.y
+        self.eject_sync += 1
+        self.apply_eject_state(target.eject_img, target.player_colour)
+
+    def apply_assigned_colour(self, colour):
+        if colour is None or colour == self.player.player_colour:
+            return
+        old_pos = vec(self.player.pos)
+        old_id = self.player.player_id
+        was_imposter = self.player.imposter
+        self.player.kill()
+        self.player_colour = colour
+        self.player = Player(self, old_pos, old_id, True, colour)
+        self.player.imposter = was_imposter
+        self.player.pos = old_pos
+        self.player.player_id = old_id
+        if hasattr(self, "Players") and old_id:
+            self.Players[old_id] = self.player
+
+    @staticmethod
+    def send_frame(sock, payload):
+        data = pickle.dumps(payload)
+        sock.sendall(len(data).to_bytes(4, 'big') + data)
+
     # THIS METHOD RUNS THE GAME AND ITS MAIN FUNCTIONS IN LOOP
 
     def runfreeplay(self):
@@ -977,6 +1161,9 @@ class Game:
         mixer.music.set_volume(0.7)
 
         self.player = Player(self, random.choice(self.player_pos), 0, True, self.player_colour)
+        # Freeplay has no networked players; clear any leftovers from a
+        # previous multiplayer round so vote/win logic never sees stale ones.
+        self.Players = {}
 
         self.playing = True
         self.player.imposter = True
@@ -987,6 +1174,7 @@ class Game:
                 break
 
         self.imposter_among_us_status = False
+        self.start_case_brief()
 
         self.timer_start = pygame.time.get_ticks()
         self.killcooldown_start = pygame.time.get_ticks()
@@ -1029,7 +1217,7 @@ class Game:
                 for m in self.ambient_sounds.values():
                     m.stop()
                 self.effect_sounds["victory_crew"].play()
-                self.menu.game_over(self.score_list, '')
+                self.menu.game_over(self.score_list, *WIN_TEXTS["crew_tasks"])
                 return
             # For imposter
             # if imposter kills all the bots or reactor meltdown sabotage timer equals to 0 then imposter wins
@@ -1047,7 +1235,8 @@ class Game:
                 for m in self.ambient_sounds.values():
                     m.stop()
                 self.effect_sounds["victory_imposter"].play()
-                self.menu.game_over_imposter(self.score_list, '')
+                win_key = "imposter_crisis" if self.sabotagecritical else "imposter_kill"
+                self.menu.game_over_imposter(self.score_list, *WIN_TEXTS[win_key])
                 return
             elif self.game_left:
                 pg.mixer.music.stop()  # turn off background music
@@ -1076,6 +1265,8 @@ class Game:
                 chunk = b''
             if chunk:
                 self._netbuf.extend(chunk)
+            else:
+                self._net_closed = True
 
         frames = []
         while len(self._netbuf) >= 4:
@@ -1096,7 +1287,14 @@ class Game:
 
         # socket
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.connect((self.serveraddress.strip(), 4321))
+        s.settimeout(5)  # fail fast instead of freezing the window if the IP is unreachable
+        try:
+            s.connect((self.serveraddress.strip(), 4321))
+        except Exception:
+            s.close()
+            self.menu.game_left(self.score_list, "Không thể kết nối tới máy chủ. Kiểm tra địa chỉ IP và mạng.")
+            return
+        s.settimeout(None)  # back to blocking with no timeout for the rest of the session
 
         # temp var to store dynamically generated id
         player_id = 0
@@ -1105,10 +1303,16 @@ class Game:
         # used to throttle how often we send our state to the server (~20 Hz)
         self._netbuf = bytearray()
         self._last_net_send = 0
+        self._net_closed = False
+        self.join_denied_reason = None
 
         # dictionary that stores all connected players as objects, including local player. uses player id as key
         self.player = Player(self, random.choice(self.player_pos), 0, True, self.player_colour)
         self.Players = {}
+        try:
+            self.send_frame(s, ['hello', self.player_colour])
+        except Exception:
+            self._net_closed = True
 
         # --- Lobby: hold here until the server has enough players and its
         # countdown finishes, instead of dropping straight into a game with
@@ -1120,11 +1324,8 @@ class Game:
         # player's walk animation can be reproduced from the direction/index
         # they report -- same idea as how the real game syncs other players.
         LOBBY_COLOUR_IMGSETS = {
-            'Red': (red_player_imgs_left, red_player_imgs_right, red_player_imgs_up, red_player_imgs_down),
-            'Blue': (blue_player_imgs_left, blue_player_imgs_right, blue_player_imgs_up, blue_player_imgs_down),
-            'Orange': (orange_player_imgs_left, orange_player_imgs_right, orange_player_imgs_up, orange_player_imgs_down),
-            'Yellow': (yellow_player_imgs_left, yellow_player_imgs_right, yellow_player_imgs_up, yellow_player_imgs_down),
-            'Green': (green_player_imgs_left, green_player_imgs_right, green_player_imgs_up, green_player_imgs_down),
+            colour: (data["left"], data["right"], data["up"], data["down"])
+            for colour, data in COLOUR_SETS.items()
         }
 
         def lobby_resolve_other_image(p):
@@ -1144,16 +1345,24 @@ class Game:
         lobby_xmin, lobby_xmax, lobby_ymin, lobby_ymax = self.board.get_lobby_interior_bounds()
 
         lobby_count = 0
-        lobby_min = 8
+        lobby_min = 2
         lobby_seconds_left = None
         lobby_player_pos = vec((lobby_xmin + lobby_xmax) / 2, (lobby_ymin + lobby_ymax) / 2)
         lobby_flame_frame = 0
         lobby_flame_timer = 0
         lobby_last_net_send = 0
         lobby_other_players = []  # [(x, y, image), ...] -- everyone else waiting
+        lobby_joined_at = pygame.time.get_ticks()
         waiting_for_lobby = True
         while waiting_for_lobby:
             dt = self.clock.tick(FPS) / 1000
+
+            # The server hands out our id in response to the hello. If it never
+            # arrives (reply lost / server wedged) don't sit here forever.
+            if player_id == 0 and pygame.time.get_ticks() - lobby_joined_at > 8000:
+                s.close()
+                self.menu.game_left(self.score_list, "Không thể kết nối tới máy chủ")
+                return
             for event in pg.event.get():
                 if event.type == pg.QUIT:
                     self.quit()
@@ -1166,8 +1375,16 @@ class Game:
             for gameEvent in self._recv_frames(s):
                 if gameEvent[0] == 'id update':
                     player_id = gameEvent[1]
+                    self.player.player_id = player_id
+                    if len(gameEvent) > 2:
+                        self.apply_assigned_colour(gameEvent[2])
+                elif gameEvent[0] == 'join denied':
+                    self.join_denied_reason = gameEvent[1] if len(gameEvent) > 1 else 'started'
+                    self._net_closed = True
                 elif gameEvent[0] == 'lobby state':
                     lobby_count, lobby_min, lobby_seconds_left, started = gameEvent[1:5]
+                    if len(gameEvent) > 5:
+                        self.player.imposter = player_id in gameEvent[5]
                     if started:
                         waiting_for_lobby = False
                 elif gameEvent[0] == 'player locations':
@@ -1239,6 +1456,15 @@ class Game:
                 except Exception:
                     pass
 
+            if self._net_closed:
+                message = "Không thể tham gia phiên làm việc"
+                if self.join_denied_reason == 'full':
+                    message = "Phòng đã đầy"
+                elif self.join_denied_reason == 'started':
+                    message = "Phiên làm việc đã bắt đầu"
+                self.menu.game_left(self.score_list, message)
+                return
+
             self.board.draw_lobby(lobby_count, lobby_min, lobby_seconds_left,
                                    self.player.image, lobby_player_pos, lobby_flame_frame,
                                    lobby_other_players)
@@ -1258,6 +1484,10 @@ class Game:
         self.ventcooldown_start = pygame.time.get_ticks()
         self.meetingcooldown_start = pygame.time.get_ticks()
         self.timer_start = pygame.time.get_ticks()
+        self.player.player_id = player_id
+        self.Players[self.player.player_id] = self.player
+        self.imposter_among_us_status = False
+        self.start_case_brief()
 
         self.playing = True
         while self.playing:
@@ -1286,10 +1516,14 @@ class Game:
                 if gameEvent[0] == 'id update':
                     # generate player id
                     player_id = gameEvent[1]
+                    self.player.player_id = player_id
+                    if len(gameEvent) > 2:
+                        self.apply_assigned_colour(gameEvent[2])
                 # if event is such that it contains below string
                 if gameEvent[0] == 'player locations':
                     # remove the string
                     gameEvent.pop(0)
+                    snapshot_ids = {p[0] for p in gameEvent}
                     # iterating gameEvent
                     for p in gameEvent:
                         # case1, when local player is connected and needs to be appended to the dictionary
@@ -1297,8 +1531,11 @@ class Game:
                         # previously in gameEvent 'id update' matches with the id received right now
                         # we don't want to add any random player as local player
                         if p[0] not in self.Players.keys() and p[0] == player_id:
+                            if p[10] is not None:
+                                self.apply_assigned_colour(p[10])
                             # update previously created player object id with the id created dynamically by the server
                             self.player.player_id = p[0]
+                            self.player.imposter = p[15]
                             # updating local player selected colour on the server
                             self.Players[p[0]] = self.player
                             # just to check if previously created id and newly assigned id match up
@@ -1322,7 +1559,8 @@ class Game:
                             self.Players[p[0]].alive_status = p[3]
                             self.Players[p[0]].sync_img = p[4]
                             self.Players[p[0]].sync_img_index = p[5]
-                            self.Players[p[0]].image = eval(p[4] + p[5])
+                            if p[4] is not None and p[5] is not None:
+                                self.Players[p[0]].image = eval(p[4] + p[5])
                             self.Players[p[0]].left_img_index = p[6]
                             self.Players[p[0]].right_img_index = p[7]
                             self.Players[p[0]].up_img_index = p[8]
@@ -1494,40 +1732,27 @@ class Game:
                             if self.eject_sync < p[23] and p[24] != None and (
                                     self.emerg_meeting_report_status == 1 or self.emerg_meeting_button_status == 1) and self.emergency == True:
                                 self.eject_sync = p[23]
-                                self.eject = True
-                                self.eject_img = p[24]
-                                self.eject_colour = p[10]
-                                self.timer_start = pygame.time.get_ticks()
+                                eject_img, eject_colour = self.unpack_eject_payload(p[24], p[10])
+                                self.apply_eject_state(eject_img, eject_colour)
 
-                            # Votes and Eject
-                            if self.player.player_colour == p[17] and self.player.alive_status == True and p[0] not in self.voters:
+                            # Votes are now addressed by player_id and resolved once
+                            # the meeting timer ends.
+                            if self.player.player_id == p[17] and self.player.alive_status == True and p[0] not in self.voters:
                                 self.player.got_votes += 1
                                 self.voters.append(p[0])
-                            # If player got equal or more than specified votes then eject him
-                            if self.player.got_votes >= 2 and self.player.alive_status == True and (
-                                    self.emerg_meeting_report_status == 1 or self.emerg_meeting_button_status == 1) and self.emergency == True:
-                                self.player.alive_status = False
-                                self.player.got_reported == True
-                                self.player.image = self.invsible_player_image
-                                self.eject_colour = self.player.player_colour
-                                self.eject = True
-                                self.eject_sync += 1
-                                self.eject_img = self.player.eject_img
-                                self.timer_start = pygame.time.get_ticks()
+                    for missing_id in list(self.Players.keys()):
+                        if missing_id != self.player.player_id and missing_id not in snapshot_ids:
+                            self.Players[missing_id].kill()
+                            del self.Players[missing_id]
 
-                            if p[0] > self.player_highest_id:
-                                self.player_highest_id = p[0]
-                            if self.player.player_id > self.player_highest_id and self.player.imposter == False:
-                                print("yes")
-                                self.player_highest_id = self.player.player_id
-                                self.player.imposter = True
-                            elif self.player.player_id < self.player_highest_id and self.player.imposter == True:
-                                print("no")
-                                self.player.imposter = False
+            if self._net_closed:
+                self.menu.game_left(self.score_list, "Mất kết nối tới phiên làm việc")
+                return
 
             # now after receiving data from the server, time to send data to the server
             # update local player object in the list
             self.Players[self.player.player_id] = self.player
+            eject_payload = self.get_eject_payload()
             if self.player.alive_status:
                 ge = ['position update', player_id, self.player.pos.x, self.player.pos.y, self.player.alive_status,
                       self.player.sync_img, self.player.sync_img_index, self.player.left_img_index,
@@ -1535,19 +1760,19 @@ class Game:
                       self.player.player_colour, self.player.tasks_completed, self.night_sync, self.night_reactor_sync,
                       self.player.victim_id, self.player.imposter, self.emergency_sync, self.player.voted,
                       self.player.got_votes, self.emergency_img_sync, self.emergency_img_sync_report,
-                      self.player.victim_id_report, self.player.got_reported, self.eject_sync, self.eject_img]
+                      self.player.victim_id_report, self.player.got_reported, self.eject_sync, eject_payload]
             elif self.player.alive_status == False and self.player.got_reported == False:
                 ge = ['position update', player_id, self.player.pos_corpse.x, self.player.pos_corpse.y,
                       self.player.alive_status, self.player.pos_corpse_img, self.player.pos_corpse_img_index, 0, 0, 0,
                       0, self.player.player_colour, self.player.tasks_completed, self.night_sync,
                       self.night_reactor_sync, 0, self.player.imposter, self.emergency_sync, None, 0, None,
-                      self.emergency_img_sync_report, 0, self.player.got_reported, self.eject_sync, self.eject_img]
+                      self.emergency_img_sync_report, 0, self.player.got_reported, self.eject_sync, eject_payload]
             elif self.player.alive_status == False and self.player.got_reported == True:
                 ge = ['position update', player_id, self.player.pos_corpse.x, self.player.pos_corpse.y,
                       self.player.alive_status, self.player.ghost_img, self.player.ghost_img_index, 0, 0, 0, 0,
                       self.player.player_colour, self.player.tasks_completed, self.night_sync, self.night_reactor_sync,
                       0, self.player.imposter, self.emergency_sync, None, 0, None, self.emergency_img_sync_report, 0,
-                      self.player.got_reported, self.eject_sync, self.eject_img]
+                      self.player.got_reported, self.eject_sync, eject_payload]
 
             # send our state to the server: length-prefixed frame, throttled to
             # ~20 Hz so we don't flood the server 60 times a second
@@ -1580,27 +1805,26 @@ class Game:
                     for m in self.ambient_sounds.values():
                         m.stop()
                     self.effect_sounds["victory_crew"].play()
-                    self.menu.game_over(self.score_list, '')
+                    self.menu.game_over(self.score_list, *WIN_TEXTS["crew_tasks"])
                     return
-                # When imposter is ejecting
-                for p in self.Players.values():
-                    if p.alive_status == False and p.imposter == True and self.emergency == False:
-                        pg.mixer.music.stop()  # turn off background music
-                        pg.mixer.Channel(0).stop()
-                        for m in self.foot_sounds['footsteps']:
-                            m.stop()
-                        for m in self.effect_sounds.values():
-                            m.stop()
-                        for m in self.electric_shock_sounds['electric_shock']:
-                            m.stop()
-                        for m in self.comms_radio_sounds['comms_radio']:
-                            m.stop()
-                        for m in self.ambient_sounds.values():
-                            m.stop()
-                        self.effect_sounds["victory_crew"].play()
-                        # self.effect_sounds["victory_imposter"].play()
-                        self.menu.game_over(self.score_list, '')
-                        return
+                # Crew wins by vote only after every imposter has been removed.
+                imposters = [p for p in self.Players.values() if p.imposter]
+                if imposters and all(not p.alive_status for p in imposters) and self.emergency == False and self.eject == False:
+                    pg.mixer.music.stop()  # turn off background music
+                    pg.mixer.Channel(0).stop()
+                    for m in self.foot_sounds['footsteps']:
+                        m.stop()
+                    for m in self.effect_sounds.values():
+                        m.stop()
+                    for m in self.electric_shock_sounds['electric_shock']:
+                        m.stop()
+                    for m in self.comms_radio_sounds['comms_radio']:
+                        m.stop()
+                    for m in self.ambient_sounds.values():
+                        m.stop()
+                    self.effect_sounds["victory_crew"].play()
+                    self.menu.game_over(self.score_list, *WIN_TEXTS["crew_eject"])
+                    return
 
                 # When imposter kills all players
                 for p in self.Players.values():
@@ -1608,7 +1832,7 @@ class Game:
                         break
                 else:
                     pass
-                    if self.emergency == False and self.kill_victim_anim == False:
+                    if self.emergency == False and self.kill_victim_anim == False and self.eject == False:
                         pg.mixer.music.stop()  # turn off background music
                         pg.mixer.Channel(0).stop()
                         for m in self.foot_sounds['footsteps']:
@@ -1622,7 +1846,7 @@ class Game:
                         for m in self.ambient_sounds.values():
                             m.stop()
                         self.effect_sounds["victory_imposter"].play()
-                        self.menu.game_over_imposter(self.score_list, '')
+                        self.menu.game_over_imposter(self.score_list, *WIN_TEXTS["imposter_kill"])
                         return
                 # For imposter - Critical Sabotage
                 if self.sabotagecritical == True and (
@@ -1640,7 +1864,7 @@ class Game:
                     for m in self.ambient_sounds.values():
                         m.stop()
                     self.effect_sounds["victory_imposter"].play()
-                    self.menu.game_over_imposter(self.score_list, '')
+                    self.menu.game_over_imposter(self.score_list, *WIN_TEXTS["imposter_crisis"])
                     return
 
 
@@ -1886,7 +2110,7 @@ class Game:
         for hit in hitp:
             keys = pg.key.get_pressed()
             if keys[pg.K_RETURN]:
-                if (self.killcooldown - self.killcooldown_start) > 15000 and hit.alive_status == True and self.player.imposter == True and self.invisible_play_count == 0 and self.emergency == False:
+                if (self.killcooldown - self.killcooldown_start) > 15000 and hit.alive_status == True and hit.imposter == False and self.player.imposter == True and self.invisible_play_count == 0 and self.emergency == False:
                     self.player.victim_id = hit.player_id
                     self.effect_sounds['imposter_kill_sound'].play()
                     self.server_player_killed += 1
@@ -1909,6 +2133,7 @@ class Game:
 
         # Update mini map
         self.update_mini_map()
+        self.check_state_dialogs()
 
     # Change player position
     def update_mini_map(self):
@@ -2023,6 +2248,7 @@ class Game:
                 pg.time.set_timer(self.meeting_timer_event, 0)
 
             if self.emergency_meeting_index > 2:
+                self.resolve_meeting_votes()
                 self.emergency_meeting_index = 0
                 self.emerg_meeting_button_status = 0
                 self.emergency = False
@@ -2038,14 +2264,7 @@ class Game:
                     self.player.sync_img = "self.Players[p[0]].player_imgs_down"
                     self.player.sync_img_index = "[0]"
                 self.emergency_img_sync = None
-                self.player.got_votes = 0
-                self.player.voted = None
-                self.emerg_vote_red_checkbox_tick_status = False
-                self.emerg_vote_orange_checkbox_tick_status = False
-                self.emerg_vote_green_checkbox_tick_status = False
-                self.emerg_vote_yellow_checkbox_tick_status = False
-                self.emerg_vote_blue_checkbox_tick_status = False
-                self.voters = []
+                self.reset_meeting_votes()
 
         if self.emerg_meeting_report_status:
             if self.emergency_meeting_index == 0 and (self.timer - self.timer_start) < 1500:
@@ -2082,6 +2301,7 @@ class Game:
                 pg.time.set_timer(self.meeting_timer_event, 0)
 
             if self.emergency_meeting_index > 2:
+                self.resolve_meeting_votes()
                 self.emergency_meeting_index = 0
                 self.emerg_meeting_report_status = 0
                 self.emergency = False
@@ -2097,14 +2317,7 @@ class Game:
                     self.player.sync_img = "self.Players[p[0]].player_imgs_down"
                     self.player.sync_img_index = "[0]"
                 self.emergency_img_sync_report = None
-                self.player.got_votes = 0
-                self.player.voted = None
-                self.emerg_vote_red_checkbox_tick_status = False
-                self.emerg_vote_orange_checkbox_tick_status = False
-                self.emerg_vote_green_checkbox_tick_status = False
-                self.emerg_vote_yellow_checkbox_tick_status = False
-                self.emerg_vote_blue_checkbox_tick_status = False
-                self.voters = []
+                self.reset_meeting_votes()
 
         if self.eject == True:
             if (self.timer - self.timer_start) < 5000:
@@ -2166,19 +2379,19 @@ class Game:
         # If task button show check is true and game mode is Freeplay and player is crewmate then show task button only
       
         if self.task_button_show_status and self.gamemode == "Freeplay" and not self.player.imposter:
-            self.task_btn = Button(self, "Tasks", 14, 60, 33, 10, 10, "tsk_btn", WHITE, Transparent_Black, None, None,
+            self.task_btn = Button(self, "Nhiệm vụ", 14, 92, 33, 10, 10, "tsk_btn", WHITE, Transparent_Black, None, None,
                                    None, 0)
             self.task_btn.draw_text(self.screen)
 
         # If task button show check is true and game mode is Multiplayer and player is crewmate then show task button only
         if self.task_button_show_status and self.gamemode == "Multiplayer" and not self.player.imposter:
-            self.task_btn = Button(self, "Tasks", 14, 60, 33, 10, 10, "tsk_btn", WHITE, Transparent_Black, None, None,
+            self.task_btn = Button(self, "Nhiệm vụ", 14, 92, 33, 10, 10, "tsk_btn", WHITE, Transparent_Black, None, None,
                                    None, 0)
             self.task_btn.draw_text(self.screen)
 
         if self.gamemode == "Multiplayer":
             if not self.task_button_show_status and not self.player.imposter:
-                self.task_btn = Button(self, "Tasks", 14, 60, 33, 10, 10, "tsk_btn", WHITE, Transparent_Black, None,
+                self.task_btn = Button(self, "Nhiệm vụ", 14, 92, 33, 10, 10, "tsk_btn", WHITE, Transparent_Black, None,
                                        None,
                                        None, 0)
                 self.task_btn.draw_text(self.screen)
@@ -2281,6 +2494,7 @@ class Game:
                 self.stabilize_target_btn1_status = True
                 self.stabilize_close_btn_status = True
                 self.isdoingTask = True
+                self.show_dialog(TASK_DIALOGS["stabilize"][0])
                 self.stablize_sound_play_count -= 1
         ''' Yes'''
 
@@ -2311,6 +2525,7 @@ class Game:
                 self.garbage_liver_Up_status = True
                 self.empty_garbage_close_btn_status = True
                 self.isdoingTask = True
+                self.show_dialog(TASK_DIALOGS["garbage"][0])
                 self.empty_garbage_sound_play_count -= 1
         ''' Yes'''
 
@@ -2339,6 +2554,7 @@ class Game:
                 self.reboot_wifi_window_status = True
                 self.reboot_wifi_liver_up_status = True
                 self.isdoingTask = True
+                self.show_dialog(TASK_DIALOGS["wifi"][0])
                 self.reboot_wifi_sound_play_count -= 1
         ''' Yes'''
 
@@ -2375,6 +2591,7 @@ class Game:
                 self.electricity_wire_btns_visible = True
                 self.electricity_wire_sound_play_count -= 1
                 self.isdoingTask = True
+                self.show_dialog(TASK_DIALOGS["wires"][0])
 
         ''' Yes'''
         # Divert Power to Reactor Task
@@ -2403,6 +2620,7 @@ class Game:
                 #self.electricity_wire_btns_visible = True
                 self.divert_power_to_reactor_sound_play_count -= 1
                 self.isdoingTask = True
+                self.show_dialog(TASK_DIALOGS["power"][0])
 
         ''' Yes'''
         # Align Engine Output Task
@@ -2443,6 +2661,7 @@ class Game:
                 self.align_engine_output_close_btn_status = True
                 self.align_engine_output_sound_play_count -= 1
                 self.isdoingTask = True
+                self.show_dialog(TASK_DIALOGS["engine"][0])
         ''' Yes'''
 
 
@@ -2468,13 +2687,13 @@ class Game:
             self.display_gas_can_picked()
 
         # IF player has not picked up gas can then show text
-        GAME_FONT = pygame.font.Font(FONT, 34)
+        GAME_FONT = vn_font(28)
         if self.gas_can_not_picked_text_visible_status:
             self.screen.blit(self.fuel_engine_filled_black_bg, (WIDTH / 3 - 45, 70))
             self.display_fuel_engine_window()
             self.screen.blit(self.dim_screen, (0, 0))
-            self.text = GAME_FONT.render(" Find a Gas Can Nearby", True, WHITE)
-            self.screen.blit(self.text, (450, HEIGHT/2 - 30))
+            self.text = GAME_FONT.render("Tìm bình nhiên liệu dữ liệu gần đó", True, WHITE)
+            self.screen.blit(self.text, (400, HEIGHT/2 - 30))
             self.fuel_engine_close_btn2.draw_Image(self.screen)
 
         # Pick Storage Gas Can Task Trigger
@@ -2499,10 +2718,12 @@ class Game:
                     self.fuel_engine_fill_btn_status = True
                     self.fuel_engine_close_btn_status = True
                     self.isdoingTask = True
+                    self.show_dialog(TASK_DIALOGS["fuel"][0])
                     self.fuel_engine_sound_play_count -= 1
                 else:
                     self.gas_can_not_picked_text_visible_status = True
                     self.isdoingTask = True
+                    self.show_dialog("Cần tìm bình nhiên liệu dữ liệu gần đó trước khi bổ sung nguồn lực kiểm toán.")
                     self.fuel_engine_sound_play_count2 -= 1
         ''' Yes'''
 
@@ -2543,6 +2764,7 @@ class Game:
                             self.clear_asteroid_task_play_count -= 1
                             if self.increment_in_missions == 1:
                                 self.missions_done += 1
+                                self.show_dialog(TASK_DIALOGS["asteroids"][1])
                             self.increment_in_missions -= 1
                         break
 
@@ -2587,6 +2809,7 @@ class Game:
                     self.clear_asteroid_task_window_status = True
                     self.clear_asteroid_task_available = True
                     self.isdoingTask = True
+                    self.show_dialog(TASK_DIALOGS["asteroids"][0])
                     self.clear_asteroid_sound_play_count -=1
         # TASKS CODE CLOSES HERE ------------------------------------------------------------
 
@@ -2596,20 +2819,17 @@ class Game:
         # Show bot alive count only to impostors
         # if game mode is Freeplay and player is imposter then show bot-alive
         if self.bot_count_show_status and self.gamemode == "Freeplay" and self.player.imposter and not self.clear_asteroid_task_window_status:
-            self.bot_bg = pg.Surface((105, 33)).convert_alpha()
+            self.bot_bg = pg.Surface((255, 33)).convert_alpha()
             self.bot_bg.fill((0, 0, 0))
             self.screen.blit(self.bot_bg, (10, 10))
             self.board.draw_bots_left(self.bot_count, 14)
         # if game mode is Multiplayer and player is imposter then show bot-alive
         if self.bot_count_show_status and self.gamemode == "Multiplayer" and self.player.imposter and not self.clear_asteroid_task_window_status:
-            self.bot_bg = pg.Surface((105, 33)).convert_alpha()
+            self.bot_bg = pg.Surface((255, 33)).convert_alpha()
             self.bot_bg.fill((0, 0, 0))
             self.screen.blit(self.bot_bg, (10, 10))
-            # player connected +1 for that player who created server, it may be a bug
-            # or something that we are missing, dont know.....
-            # At least 1 player should be alive so that it will imposter
-            # who had killed everybody on ship and won the game
-            self.board.draw_bots_left(self.server_player_alive + 1, 14)
+            witnesses_left = sum(1 for p in self.Players.values() if p.alive_status and not p.imposter)
+            self.board.draw_bots_left(witnesses_left, 14)
 
         """ Player Name is loaded"""
         # If player is imposter then its name will be Red in color
@@ -2734,10 +2954,10 @@ class Game:
         """ Pause Menu is loaded 6th """
         if self.paused:
             self.screen.blit(self.dim_screen, (0, 0))
-            self.pause_btns = Button(self, "Paused", 55, 220, 70, WIDTH / 2 - 80, HEIGHT / 3, "pause_btn", RED,
+            self.pause_btns = Button(self, "Tạm dừng", 44, 270, 70, WIDTH / 2 - 135, HEIGHT / 3, "pause_btn", RED,
                                      Transparent_Black, None, None, None, 0)
             self.pause_btns.draw_text(self.screen)
-            self.pause_btns = Button(self, "Quit", 40, 100, 50, WIDTH / 2 - 40, HEIGHT / 2, "pause_quit_btn", WHITE,
+            self.pause_btns = Button(self, "Thoát", 34, 120, 50, WIDTH / 2 - 60, HEIGHT / 2, "pause_quit_btn", WHITE,
                                      Transparent_Black, None, None, None, 0)
             self.pause_btns.draw_text(self.screen)
 
@@ -2757,6 +2977,9 @@ class Game:
                 self.kill_victim_anim_index += 1
                 self.timer_start = pygame.time.get_ticks()
             self.display_kill_victim_anim()  # this layer is beneath the screen
+
+        self.display_case_brief()
+        self.display_dialog()
 
         pg.display.flip()
 
@@ -2936,7 +3159,7 @@ class Game:
                         # self.effect_sounds['go_back'].play()
                         # self.quit()
                         # self.pause_quit_button_status = True
-                        self.menu.game_left(self.score_list, 'You Left The Game')
+                        self.menu.game_left(self.score_list, 'Bạn đã rời phiên làm việc')
                         self.game_left = True
 
             # Task Button
@@ -2996,6 +3219,7 @@ class Game:
                     self.stabilize_target_btn1_status = False
                     self.target_center_sel_count -= 1
                     self.missions_done += 1
+                    self.show_dialog(TASK_DIALOGS["stabilize"][1])
                     print(self.missions_done)
             if event.type == pg.MOUSEBUTTONDOWN and event.button == LEFT_MOUSE_BUTTON and not self.paused and self.stabilize_steering_window_status:
                 pos = pg.mouse.get_pos()
@@ -3023,6 +3247,7 @@ class Game:
                     self.garbage_liver_Up_sel_count -= 1
                     self.empty_garbage_task_play_count -= 1
                     self.missions_done += 1
+                    self.show_dialog(TASK_DIALOGS["garbage"][1])
                     print(self.missions_done)
             if event.type == pg.MOUSEBUTTONDOWN and event.button == LEFT_MOUSE_BUTTON and not self.paused and self.empty_garbage_window_status:
                 pos = pg.mouse.get_pos()
@@ -3050,6 +3275,7 @@ class Game:
                     self.reboot_wifi_liver_sel_count -= 1
                     self.reboot_wifi_task_play_count -= 1
                     self.missions_done += 1
+                    self.show_dialog(TASK_DIALOGS["wifi"][1])
                     print(self.missions_done)
             if event.type == pg.MOUSEBUTTONDOWN and event.button == LEFT_MOUSE_BUTTON and not self.paused and self.reboot_wifi_window_status:
                 pos = pg.mouse.get_pos()
@@ -3067,62 +3293,12 @@ class Game:
             if event.type == pg.MOUSEBUTTONDOWN and event.button == LEFT_MOUSE_BUTTON and not self.paused and (
                     self.emerg_meeting_button_status or self.emerg_meeting_report_status) and self.emergency == True and self.player.alive_status == True:
                 pos = pg.mouse.get_pos()
-                if self.emerg_red_checkbox.click(pos):
-                    if self.player.voted == None:
-                        self.player.voted = "Red"
-                        self.emerg_vote_red_checkbox_tick_status = True
-                        self.emerg_vote_orange_checkbox_tick_status = False
-                        self.emerg_vote_green_checkbox_tick_status = False
-                        self.emerg_vote_yellow_checkbox_tick_status = False
-                        self.emerg_vote_blue_checkbox_tick_status = False
-                    #else:
-                    #    self.player.voted = None
-                    #    self.emerg_vote_red_checkbox_tick_status = False
-                elif self.emerg_orange_checkbox.click(pos):
-                    if self.player.voted == None:
-                        self.player.voted = "Orange"
-                        self.emerg_vote_red_checkbox_tick_status = False
-                        self.emerg_vote_orange_checkbox_tick_status = True
-                        self.emerg_vote_green_checkbox_tick_status = False
-                        self.emerg_vote_yellow_checkbox_tick_status = False
-                        self.emerg_vote_blue_checkbox_tick_status = False
-                    #else:
-                    #    self.player.voted = None
-                    #    self.emerg_vote_orange_checkbox_tick_status = False
-                elif self.emerg_green_checkbox.click(pos):
-                    if self.player.voted == None:
-                        self.player.voted = "Green"
-                        self.emerg_vote_red_checkbox_tick_status = False
-                        self.emerg_vote_orange_checkbox_tick_status = False
-                        self.emerg_vote_green_checkbox_tick_status = True
-                        self.emerg_vote_yellow_checkbox_tick_status = False
-                        self.emerg_vote_blue_checkbox_tick_status = False
-                    #else:
-                    #    self.player.voted = None
-                    #    self.emerg_vote_green_checkbox_tick_status = False
-                elif self.emerg_yellow_checkbox.click(pos):
-                    if self.player.voted == None:
-                        self.player.voted = "Yellow"
-                        self.emerg_vote_red_checkbox_tick_status = False
-                        self.emerg_vote_orange_checkbox_tick_status = False
-                        self.emerg_vote_green_checkbox_tick_status = False
-                        self.emerg_vote_yellow_checkbox_tick_status = True
-                        self.emerg_vote_blue_checkbox_tick_status = False
-                    #else:
-                    #    self.player.voted = None
-                    #    self.emerg_vote_yellow_checkbox_tick_status = False
-                elif self.emerg_blue_checkbox.click(pos):
-                    if self.player.voted == None:
-                        self.player.voted = "Blue"
-                        self.emerg_vote_red_checkbox_tick_status = False
-                        self.emerg_vote_orange_checkbox_tick_status = False
-                        self.emerg_vote_green_checkbox_tick_status = False
-                        self.emerg_vote_yellow_checkbox_tick_status = False
-                        self.emerg_vote_blue_checkbox_tick_status = True
-                    #else:
-                    #    self.player.voted = None
-                    #    self.emerg_vote_blue_checkbox_tick_status = False
-                self.effect_sounds['vote_sound'].play()
+                if self.player.voted is None:
+                    for row, target in self.vote_row_rects:
+                        if row.collidepoint(pos):
+                            self.player.voted = target
+                            self.effect_sounds['vote_sound'].play()
+                            break
 
             """ ELECTRIC WIRES TASK BUTTONS & EVENTS"""
             if event.type == pg.MOUSEBUTTONDOWN and event.button == LEFT_MOUSE_BUTTON and not self.paused and self.electricity_wire_window_status:
@@ -3152,6 +3328,7 @@ class Game:
                     self.effect_sounds['fix_electric_wires_BG'].fadeout(500)
                     self.effect_sounds['fixed_electric_wires_BG'].play(-1)
                     self.missions_done += 1
+                    self.show_dialog(TASK_DIALOGS["wires"][1])
                     self.electricity_wire_task_play_count -= 1
                     self.electricity_wires_fixed_count += 1
                     print(self.electricity_wires_fixed_count)
@@ -3189,6 +3366,7 @@ class Game:
                     self.divert_power_to_reactor_task_play_count -= 1
                     self.divert_power_to_reactor_liversUP_sel_count -= 1
                     self.missions_done += 1
+                    self.show_dialog(TASK_DIALOGS["power"][1])
                 elif self.divert_power_to_reactor_close_btn.click(pos):
                     self.effect_sounds['go_back'].play()
                     self.effect_sounds['fix_electric_wires_BG'].fadeout(500)
@@ -3215,6 +3393,7 @@ class Game:
                     self.align_engine_liver_pos_btn2_sel_count -= 1
                     self.align_engine_output_task_play_count -=1
                     self.missions_done += 1
+                    self.show_dialog(TASK_DIALOGS["engine"][1])
                 # if player has not click on button 1 and he then clicks button 2 then play error sound
                 if self.align_engine_liver_pos_btn2.click(pos) and self.align_engine_liver_pos_btn1_sel_count == 1:
                     self.effect_sounds['imposter_kill_cooldown_sound'].play()
@@ -3246,6 +3425,7 @@ class Game:
                         self.fuel_engine_fill_btn_sel_count -=1
                         self.effect_sounds['task_completed'].play()
                         self.missions_done += 1
+                        self.show_dialog(TASK_DIALOGS["fuel"][1])
                         self.is_gas_can_picked = False
                         self.fuel_engine_task_play_count -=1
 
@@ -3319,20 +3499,20 @@ class Game:
         progress_bar = pg.Rect(x, y, progress_width, height)
         pg.draw.rect(screen_surface, color, progress_bar)
 
-        taskbar_font = pg.font.Font(FONT, 14)
+        taskbar_font = vn_font(14)
         if missions_done >= 5:
             # if mission completed is 4 or greater than 4 then font color is Black
-            text_surface = taskbar_font.render("Total Tasks Completed", True, BLACK)
+            text_surface = taskbar_font.render("Tiến độ minh bạch", True, BLACK)
         else:
             # if mission completed is less than 4 then font color is White
-            text_surface = taskbar_font.render("Total Tasks Completed", True, WHITE)
-        self.screen.blit(text_surface, (90, 17))
+            text_surface = taskbar_font.render("Tiến độ minh bạch", True, WHITE)
+        self.screen.blit(text_surface, (122, 17))
 
         # 4th parameter is the thickness of border of rectangle
         pg.draw.rect(screen_surface, WHITE, outline_rect, 2)
 
     def draw_missions_box(self):
-        self.GAME_FONT = pygame.font.Font(FONT, 18)
+        self.GAME_FONT = vn_font(15)
         self.mission_box = pg.Surface((415, 235)).convert_alpha()
         self.mission_box.fill((0, 0, 0, 96))
         self.screen.blit(self.mission_box, (10, 45))
@@ -3408,20 +3588,23 @@ class Game:
         if self.gamemode == "Freeplay":
             progress_width = width * players_killed / NO_OF_BOTS
         if self.gamemode == "Multiplayer":
-            progress_width = width * self.server_player_killed / self.server_players_connected
+            targets = [p for p in self.Players.values() if not p.imposter]
+            total_targets = max(1, len(targets))
+            removed_targets = sum(1 for p in targets if not p.alive_status)
+            progress_width = width * removed_targets / total_targets
         # Outline rectangle for background and border effect
         outline_rect = pg.Rect(x, y, width, height)
         progress_bar = pg.Rect(x, y, progress_width, height)
         pg.draw.rect(screen_surface, color, progress_bar)
 
         # progress bar text
-        taskbar_font = pg.font.Font(FONT, 14)
-        text_surface = taskbar_font.render("K I L L   A L L   B O T S", True, WHITE)
-        text_surface2 = taskbar_font.render("K I L L   A L L   P L A Y E R S", True, WHITE)
+        taskbar_font = vn_font(12)
+        text_surface = taskbar_font.render("BỊT ĐẦU MỐI TẤT CẢ NHÂN CHỨNG", True, WHITE)
+        text_surface2 = taskbar_font.render("BỊT ĐẦU MỐI TẤT CẢ NHÂN CHỨNG", True, WHITE)
         if self.gamemode == "Freeplay":
-            self.screen.blit(text_surface, (140, 17))
+            self.screen.blit(text_surface, (138, 17))
         else:
-            self.screen.blit(text_surface2, (140, 17))
+            self.screen.blit(text_surface2, (138, 17))
 
         # 4th parameter is the thickness of border of rectangle
         pg.draw.rect(screen_surface, WHITE, outline_rect, 2)

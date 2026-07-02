@@ -49,11 +49,11 @@ class Board:
         self.lobby_left_engine_anchor = (130, 730)
         self.lobby_right_engine_anchor = (1100, 730)
 
-        self.menu_font = pg.font.Font(FONT, 35)
-        self.bonus_font = pg.font.Font(FONT, 30)
-        self.title_font = pg.font.Font(FONT, 90)
-        self.game_over_font = pg.font.Font(FONT, 120)
-        self.game_left_font = pg.font.Font(FONT, 75)
+        self.menu_font = vn_font(35)
+        self.bonus_font = vn_font(28)
+        self.title_font = vn_font(72)
+        self.game_over_font = vn_font(52)
+        self.game_left_font = vn_font(60)
 
     # Draw Main Menu - Intro Menu
     def draw_menu(self, *args):
@@ -99,31 +99,52 @@ class Board:
             drawable.draw_on(self.surface)
         pg.display.update()
 
+    # Dim band behind the title/subtitle so the Vietnamese overlay stays
+    # readable on top of the text baked into the victory/defeat art.
+    def _draw_game_over_backdrop(self):
+        band = pg.Surface((self.width, int(self.height * 0.24)), pg.SRCALPHA)
+        band.fill((0, 0, 0, 170))
+        self.surface.blit(band, (0, int(self.height * 0.09)))
+
     # Draw Gameover Menu
-    def draw_game_over(self, scoreboard: list, message: str, *args):
+    def draw_game_over(self, scoreboard: list, message: str, subtitle='', lesson='', *args):
         background = pg.image.load("Assets/Images/Alerts/victory.PNG")
         #self.surface.fill(background)
         self.surface.blit(background,(0,0))
-        self.draw_text(self.surface, message, self.width / 2, self.height * 0.2, self.game_over_font)
-        pos = 0.5
+        self._draw_game_over_backdrop()
+        self.draw_text(self.surface, message, self.width / 2, self.height * 0.16, self.game_over_font)
+        if subtitle:
+            self.draw_wrapped_text(self.surface, subtitle, vn_font(28), MENU_FONT_COLOR,
+                                   pg.Rect(90, self.height * 0.23, self.width - 180, 90))
+        pos = 0.42
         for player in scoreboard:
             self.draw_text(self.surface, player[0], self.width / 3, self.height * pos, self.bonus_font)
             self.draw_text(self.surface, player[1], self.width * 2 / 3, self.height * pos, self.bonus_font)
             pos += 0.08
+        if lesson:
+            self.draw_wrapped_text(self.surface, lesson, vn_font(22), MENU_FONT_COLOR,
+                                   pg.Rect(110, self.height * 0.74, self.width - 220, 120), line_spacing=8)
         for drawable in args:
             drawable.draw_on(self.surface)
         pg.display.update()
         
-    def draw_game_over_imposter(self, scoreboard: list, message: str, *args):
+    def draw_game_over_imposter(self, scoreboard: list, message: str, subtitle='', lesson='', *args):
         background = pg.image.load("Assets/Images/Alerts/defeat.PNG")
         #self.surface.fill(background)
         self.surface.blit(background,(0,0))
-        self.draw_text(self.surface, message, self.width / 2, self.height * 0.2, self.game_over_font)
-        pos = 0.5
+        self._draw_game_over_backdrop()
+        self.draw_text(self.surface, message, self.width / 2, self.height * 0.16, self.game_over_font)
+        if subtitle:
+            self.draw_wrapped_text(self.surface, subtitle, vn_font(28), MENU_FONT_COLOR,
+                                   pg.Rect(90, self.height * 0.23, self.width - 180, 90))
+        pos = 0.42
         for player in scoreboard:
             self.draw_text(self.surface, player[0], self.width / 3, self.height * pos, self.bonus_font)
             self.draw_text(self.surface, player[1], self.width * 2 / 3, self.height * pos, self.bonus_font)
             pos += 0.08
+        if lesson:
+            self.draw_wrapped_text(self.surface, lesson, vn_font(22), MENU_FONT_COLOR,
+                                   pg.Rect(110, self.height * 0.74, self.width - 220, 120), line_spacing=8)
         for drawable in args:
             drawable.draw_on(self.surface)
         pg.display.update()
@@ -197,9 +218,9 @@ class Board:
         self.surface.fill((10, 12, 20))
 
         if seconds_left is not None:
-            status_text = f"STARTING IN {seconds_left}s"
+            status_text = f"BẮT ĐẦU SAU {seconds_left} GIÂY"
         else:
-            status_text = f"WAITING FOR PLAYERS... {player_count}/{min_players}"
+            status_text = f"ĐANG CHỜ CÁN BỘ... {player_count}/{min_players}"
         self.draw_text(self.surface, status_text, self.width / 2, self.height * 0.06, self.menu_font)
 
         ship_x, ship_y, scale, ship_w, ship_h = self.get_lobby_ship_layout()
@@ -248,51 +269,89 @@ class Board:
         pg.display.update()
 
     def draw_pause(self):
-        self.draw_text(self.surface, "Paused", self.width / 2, self.height / 2, self.title_font)
+        self.draw_text(self.surface, "Tạm dừng", self.width / 2, self.height / 2, self.title_font)
 
     def draw_bots_left(self, left: int, text_size):
-        self.bots_left_font = pg.font.Font(FONT, text_size)
-        if self.game.gamemode == "Freeplay":
-            self.draw_text(self.surface, "Bots Alive: {}".format(left), 60, 25, self.bots_left_font)
-        elif self.game.gamemode == "Multiplayer":
-            self.draw_text(self.surface, "PLYR Alive: {}".format(left), 60 , 25, self.bots_left_font)
+        self.bots_left_font = vn_font(text_size)
+        self.draw_text(self.surface, "Đầu mối còn lại: {}".format(left), 135, 25, self.bots_left_font)
 
     def draw_player_name(self, player_name, text_color, text_size):
-        self.player_name_font = pg.font.Font(FONT, text_size)
-        text_surface = self.player_name_font.render(player_name + " - Imposter", True, text_color)
-        text_surface2 = self.player_name_font.render(player_name+ " - Crewmate", True, text_color)
+        self.player_name_font = vn_font(text_size)
+        text_surface = self.player_name_font.render(player_name + " - " + ROLE_IMPOSTER, True, text_color)
+        text_surface2 = self.player_name_font.render(player_name + " - " + ROLE_CREW, True, text_color)
         if self.game.player.imposter:
             return text_surface
         else:
             return text_surface2
 
-    def draw_ejected_text(self, p):
-        self.draw_text(self.surface, p + " was ejected", self.width/2, self.height/2, self.bonus_font)
+    def draw_ejected_text(self, colour, role_text=None):
+        display_colour = COLOR_DISPLAY_NAMES.get(colour, colour)
+        headline = f"{display_colour} đã bị đình chỉ công tác sau phiên biểu quyết."
+        self.draw_wrapped_text(self.surface, headline, vn_font(30), MENU_FONT_COLOR,
+                               pg.Rect(180, self.height / 2 - 72, self.width - 360, 80))
+        if role_text:
+            self.draw_wrapped_text(self.surface, role_text, vn_font(23), MENU_FONT_COLOR,
+                                   pg.Rect(200, self.height / 2 + 5, self.width - 400, 105), line_spacing=6)
 
     def draw_light_timer_text(self, left: int, text_color, text_size):
-        timer_font = pg.font.Font(FONT, text_size)
+        timer_font = vn_font(text_size)
         text_surface = timer_font.render("{} ".format(left), True, text_color)
         return text_surface
 
     def draw_kill_timer_text(self, left: int, text_color, text_size):
-        timer_font = pg.font.Font(FONT, text_size)
+        timer_font = vn_font(text_size)
         text_surface = timer_font.render("{} ".format(left), True, text_color)
         return text_surface
 
     def draw_reactor_timer_imposter_text(self, left: int, text_color, text_size):
-        timer_font = pg.font.Font(FONT, text_size)
+        timer_font = vn_font(text_size)
         text_surface = timer_font.render("{} ".format(left), True, text_color)
         return text_surface
 
     def draw_reactor_timer_text(self, left: int, text_color, text_size):
-        timer_font = pg.font.Font(FONT, text_size)
-        text_surface = timer_font.render("Reactor Meltdown in: {} ".format(left) + " secs", True, text_color)
+        timer_font = vn_font(text_size)
+        text_surface = timer_font.render("Khủng hoảng niềm tin sau: {} giây".format(left), True, text_color)
         return text_surface
 
     def draw_meeting_timer_text(self, left: int, text_color, text_size):
-        timer_font = pg.font.Font(FONT, text_size)
-        text_surface = timer_font.render("Voting Ends in: {} ".format(left), True, text_color)
+        timer_font = vn_font(text_size)
+        text_surface = timer_font.render("Biểu quyết kết thúc sau: {} ".format(left), True, text_color)
         return text_surface
+
+    @staticmethod
+    def wrap_text_lines(text, font, max_width):
+        lines = []
+        for raw_line in str(text).splitlines():
+            words = raw_line.split()
+            if not words:
+                lines.append("")
+                continue
+            current = words[0]
+            for word in words[1:]:
+                trial = current + " " + word
+                if font.size(trial)[0] <= max_width:
+                    current = trial
+                else:
+                    lines.append(current)
+                    current = word
+            lines.append(current)
+        return lines
+
+    def draw_wrapped_text(self, surface, text, font, color, rect, line_spacing=6, center=True):
+        rect = pg.Rect(rect)
+        y = rect.top
+        for line in self.wrap_text_lines(text, font, rect.width):
+            text_surface = font.render(line, True, color)
+            text_rect = text_surface.get_rect()
+            if center:
+                text_rect.centerx = rect.centerx
+            else:
+                text_rect.x = rect.x
+            text_rect.y = y
+            surface.blit(text_surface, text_rect)
+            y += text_surface.get_height() + line_spacing
+            if y > rect.bottom:
+                break
 
     @staticmethod
     def draw_adds(surface, x, y, image, amount=1):

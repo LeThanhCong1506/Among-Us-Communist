@@ -214,9 +214,9 @@ class Menu:
                         self.game.effect_sounds['keypress'].play()
                 self.game.board.draw_input_address(word_ip, WIDTH / 2, HEIGHT / 2)
 
-    def game_over(self, scoreboard, message):
+    def game_over(self, scoreboard, message, subtitle='', lesson=''):
         while True:
-            self.game.board.draw_game_over(scoreboard, message)
+            self.game.board.draw_game_over(scoreboard, message, subtitle, lesson)
             for event in pg.event.get():
                 if event.type == pg.QUIT:
                     quit_game()
@@ -229,9 +229,9 @@ class Menu:
                             self.game.quit()
                         else:
                             return
-    def game_over_imposter(self, scoreboard, message):
+    def game_over_imposter(self, scoreboard, message, subtitle='', lesson=''):
         while True:
-            self.game.board.draw_game_over_imposter(scoreboard, message)
+            self.game.board.draw_game_over_imposter(scoreboard, message, subtitle, lesson)
             for event in pg.event.get():
                 if event.type == pg.QUIT:
                     quit_game()
