@@ -38,7 +38,7 @@ class Menu:
         self.pos_x = 0
         self.pos_y = 0
         self.i = 0
-        self.word_count_ip = 15
+        self.word_count_ip = 17
         self.word_count_name = 11
         self.music_playing = False
 
@@ -173,7 +173,12 @@ class Menu:
                                 self.game.runfreeplay()
                                 return
                             elif self.game.gamemode == "Multiplayer":
-                                self.game_input_address()
+                                # Skip manual IP entry -- connect straight to the
+                                # configured host so players don't type anything.
+                                self.game.effect_sounds['main_menu_music'].stop()
+                                self.game.new()
+                                self.game.serveraddress = MULTIPLAYER_SERVER_IP
+                                self.game.runmultiplayer()
                                 return
                     elif len(self.word) < self.word_count_name:
                         self.word += event.unicode

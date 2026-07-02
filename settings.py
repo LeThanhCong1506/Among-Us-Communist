@@ -18,6 +18,7 @@ MENU_FONT_COLOR = (255, 255, 255)
 WIDTH = 1280   # 16 * 64 or 32 * 32 or 64 * 16
 HEIGHT = 640  # 16 * 48 or 32 * 24 or 64 * 12
 FPS = 60
+MULTIPLAYER_SERVER_IP = "192.168.1.147"  # host machine's LAN IP; change this if the host changes
 TITLE = "Multi Player Game"
 BGCOLOR = Brown
 NO_OF_MISSIONS = 8
