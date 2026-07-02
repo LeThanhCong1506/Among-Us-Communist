@@ -15,6 +15,11 @@ PORT = 4321
 # clients send, which is what lets it scale to ~15 players without melting.
 TICK = 0.05  # seconds -> 20 broadcasts per second
 
+# Lobby gate: don't let the game start until enough players have connected,
+# then give a short countdown so people can see it coming before it starts.
+LOBBY_MIN_PLAYERS = 2
+LOBBY_COUNTDOWN_SECONDS = 10
+
 print("Server Address: " + socket.gethostbyname(socket.gethostname()))
 
 
@@ -118,6 +123,15 @@ def build_snapshot():
   return frame(pickle.dumps(update))
 
 
+def build_lobby_state(count, lobby_deadline, game_started, now):
+  """['lobby state', connected_count, min_players, seconds_left_or_None, game_started]"""
+  seconds_left = None
+  if lobby_deadline is not None and not game_started:
+    seconds_left = max(0, int(round(lobby_deadline - now)))
+  msg = ['lobby state', count, LOBBY_MIN_PLAYERS, seconds_left, game_started]
+  return frame(pickle.dumps(msg))
+
+
 def drop_client(sock):
   """Remove a disconnected client and its player so ghosts don't pile up."""
   pid = conn_id.pop(sock, None)
@@ -139,6 +153,8 @@ def main():
 
   clients = [server]
   last_tick = time.time()
+  lobby_deadline = None   # timestamp the countdown ends; None = not counting down
+  game_started = False    # one-way latch: once the countdown finishes, stays True
 
   while True:
     # Wake up at least every TICK seconds so broadcasts stay on schedule even
@@ -197,12 +213,22 @@ def main():
     now = time.time()
     if now - last_tick >= TICK:
       last_tick = now
-      snapshot = build_snapshot()
+
+      count = len(minionmap)
+      if not game_started:
+        if lobby_deadline is None and count >= LOBBY_MIN_PLAYERS:
+          lobby_deadline = now + LOBBY_COUNTDOWN_SECONDS
+        elif lobby_deadline is not None and count < LOBBY_MIN_PLAYERS:
+          lobby_deadline = None  # someone left before the countdown finished -- cancel it
+        elif lobby_deadline is not None and now >= lobby_deadline:
+          game_started = True
+
+      payload = build_snapshot() + build_lobby_state(count, lobby_deadline, game_started, now)
       for c in list(clients):
         if c is server:
           continue
         try:
-          c.sendall(snapshot)
+          c.sendall(payload)
         except Exception:
           if c in clients:
             clients.remove(c)

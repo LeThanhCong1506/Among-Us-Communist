@@ -1065,25 +1065,34 @@ class Game:
                 self.effect_sounds["game_left"].play()
                 return
 
+    def _recv_frames(self, sock):
+        # Non-blocking receive + length-prefixed frame decode. Returns every
+        # complete message available right now (possibly empty).
+        ins, outs, ex = select.select([sock], [], [], 0)
+        for inm in ins:
+            try:
+                chunk = inm.recv(BUFFERSIZE)
+            except Exception:
+                chunk = b''
+            if chunk:
+                self._netbuf.extend(chunk)
+
+        frames = []
+        while len(self._netbuf) >= 4:
+            n = int.from_bytes(self._netbuf[:4], 'big')
+            if len(self._netbuf) < 4 + n:
+                break
+            msg = bytes(self._netbuf[4:4 + n])
+            del self._netbuf[:4 + n]
+            try:
+                frames.append(pickle.loads(msg))
+            except Exception:
+                pass
+        return frames
+
     def runmultiplayer(self):
         # Game main loop - set self.playing = False to end the game
-        # bg music
         global ge
-        mixer.music.play(-1)
-        mixer.music.set_volume(0.7)
-
-        # remove bots
-        for b in self.bots:
-            b.kill()
-        self.bot_count = 0
-
-        self.killcooldown_start = pygame.time.get_ticks()
-        self.sabotagecooldown_start = pygame.time.get_ticks()
-        self.sabotagecriticaltimer_start = pygame.time.get_ticks()
-        self.ventcooldown_start = pygame.time.get_ticks()
-        self.meetingcooldown_start = pygame.time.get_ticks()
-        self.timer_start = pygame.time.get_ticks()
-
 
         # socket
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -1101,6 +1110,147 @@ class Game:
         self.player = Player(self, random.choice(self.player_pos), 0, True, self.player_colour)
         self.Players = {}
 
+        # --- Lobby: hold here until the server has enough players and its
+        # countdown finishes, instead of dropping straight into a game with
+        # whoever happens to already be connected. Purely cosmetic free-roam
+        # (no map collision) so there's something to do while waiting.
+        LOBBY_PLAYER_SPEED = 220  # pixels/sec
+        LOBBY_FLAME_FRAME_TIME = 0.12  # seconds per flame frame (~8 fps flicker)
+        # (left_imgs, right_imgs, up_imgs, down_imgs) per colour, so another
+        # player's walk animation can be reproduced from the direction/index
+        # they report -- same idea as how the real game syncs other players.
+        LOBBY_COLOUR_IMGSETS = {
+            'Red': (red_player_imgs_left, red_player_imgs_right, red_player_imgs_up, red_player_imgs_down),
+            'Blue': (blue_player_imgs_left, blue_player_imgs_right, blue_player_imgs_up, blue_player_imgs_down),
+            'Orange': (orange_player_imgs_left, orange_player_imgs_right, orange_player_imgs_up, orange_player_imgs_down),
+            'Yellow': (yellow_player_imgs_left, yellow_player_imgs_right, yellow_player_imgs_up, yellow_player_imgs_down),
+            'Green': (green_player_imgs_left, green_player_imgs_right, green_player_imgs_up, green_player_imgs_down),
+        }
+
+        def lobby_resolve_other_image(p):
+            imgsets = LOBBY_COLOUR_IMGSETS.get(p[10])
+            if imgsets is None:
+                return None
+            left_imgs, right_imgs, up_imgs, down_imgs = imgsets
+            sync_img = p[4] or ""
+            if "player_imgs_left" in sync_img:
+                return left_imgs[p[6] % len(left_imgs)]
+            if "player_imgs_right" in sync_img:
+                return right_imgs[p[7] % len(right_imgs)]
+            if "player_imgs_up" in sync_img:
+                return up_imgs[p[8] % len(up_imgs)]
+            return down_imgs[p[9] % len(down_imgs)]
+
+        lobby_xmin, lobby_xmax, lobby_ymin, lobby_ymax = self.board.get_lobby_interior_bounds()
+
+        lobby_count = 0
+        lobby_min = 8
+        lobby_seconds_left = None
+        lobby_player_pos = vec((lobby_xmin + lobby_xmax) / 2, (lobby_ymin + lobby_ymax) / 2)
+        lobby_flame_frame = 0
+        lobby_flame_timer = 0
+        lobby_last_net_send = 0
+        lobby_other_players = []  # [(x, y, image), ...] -- everyone else waiting
+        waiting_for_lobby = True
+        while waiting_for_lobby:
+            dt = self.clock.tick(FPS) / 1000
+            for event in pg.event.get():
+                if event.type == pg.QUIT:
+                    self.quit()
+                if event.type == pg.KEYDOWN and event.key == pg.K_ESCAPE:
+                    s.close()
+                    self.effect_sounds['go_back'].play()
+                    self.menu.game_intro()
+                    return
+
+            for gameEvent in self._recv_frames(s):
+                if gameEvent[0] == 'id update':
+                    player_id = gameEvent[1]
+                elif gameEvent[0] == 'lobby state':
+                    lobby_count, lobby_min, lobby_seconds_left, started = gameEvent[1:5]
+                    if started:
+                        waiting_for_lobby = False
+                elif gameEvent[0] == 'player locations':
+                    others = []
+                    for p in gameEvent[1:]:
+                        if p[0] == player_id:
+                            continue
+                        img = lobby_resolve_other_image(p)
+                        if img is not None:
+                            others.append((p[1], p[2], img))
+                    lobby_other_players = others
+
+            keys = pg.key.get_pressed()
+            move = vec(0, 0)
+            if keys[pg.K_UP] or keys[pg.K_w]:
+                move.y -= 1
+                self.player.up_img_index = (self.player.up_img_index + 1) % len(self.player.player_imgs_up)
+                self.player.image = self.player.player_imgs_up[self.player.up_img_index]
+                self.player.sync_img = "self.Players[p[0]].player_imgs_up"
+            if keys[pg.K_DOWN] or keys[pg.K_s]:
+                move.y += 1
+                self.player.down_img_index = (self.player.down_img_index + 1) % len(self.player.player_imgs_down)
+                self.player.image = self.player.player_imgs_down[self.player.down_img_index]
+                self.player.sync_img = "self.Players[p[0]].player_imgs_down"
+            # horizontal walk frames take priority over vertical when both are
+            # held, matching the real in-game movement animation's convention
+            if keys[pg.K_LEFT] or keys[pg.K_a]:
+                move.x -= 1
+                self.player.left_img_index = (self.player.left_img_index + 1) % len(self.player.player_imgs_left)
+                self.player.image = self.player.player_imgs_left[self.player.left_img_index]
+                self.player.sync_img = "self.Players[p[0]].player_imgs_left"
+            if keys[pg.K_RIGHT] or keys[pg.K_d]:
+                move.x += 1
+                self.player.right_img_index = (self.player.right_img_index + 1) % len(self.player.player_imgs_right)
+                self.player.image = self.player.player_imgs_right[self.player.right_img_index]
+                self.player.sync_img = "self.Players[p[0]].player_imgs_right"
+            if move.length_squared() > 0:
+                move.scale_to_length(LOBBY_PLAYER_SPEED * dt)
+                lobby_player_pos += move
+                lobby_player_pos.x = max(lobby_xmin, min(lobby_xmax, lobby_player_pos.x))
+                lobby_player_pos.y = max(lobby_ymin, min(lobby_ymax, lobby_player_pos.y))
+
+            lobby_flame_timer += dt
+            if lobby_flame_timer >= LOBBY_FLAME_FRAME_TIME:
+                lobby_flame_timer = 0
+                lobby_flame_frame = (lobby_flame_frame + 1) % 6
+
+            # tell the server (and through it, everyone else waiting) where we
+            # are, throttled to ~20 Hz same as the real gameplay loop
+            _now = pygame.time.get_ticks()
+            if _now - lobby_last_net_send >= 50:
+                lobby_last_net_send = _now
+                lobby_update = ['position update', player_id, lobby_player_pos.x, lobby_player_pos.y,
+                                 True, self.player.sync_img, self.player.sync_img_index,
+                                 self.player.left_img_index, self.player.right_img_index,
+                                 self.player.up_img_index, self.player.down_img_index,
+                                 self.player.player_colour, 0, 0, 0, 0, False, 0, None, 0,
+                                 None, None, 0, False, False, None]
+                try:
+                    _data = pickle.dumps(lobby_update)
+                    s.sendall(len(_data).to_bytes(4, 'big') + _data)
+                except Exception:
+                    pass
+
+            self.board.draw_lobby(lobby_count, lobby_min, lobby_seconds_left,
+                                   self.player.image, lobby_player_pos, lobby_flame_frame,
+                                   lobby_other_players)
+
+        # bg music
+        mixer.music.play(-1)
+        mixer.music.set_volume(0.7)
+
+        # remove bots
+        for b in self.bots:
+            b.kill()
+        self.bot_count = 0
+
+        self.killcooldown_start = pygame.time.get_ticks()
+        self.sabotagecooldown_start = pygame.time.get_ticks()
+        self.sabotagecriticaltimer_start = pygame.time.get_ticks()
+        self.ventcooldown_start = pygame.time.get_ticks()
+        self.meetingcooldown_start = pygame.time.get_ticks()
+        self.timer_start = pygame.time.get_ticks()
 
         self.playing = True
         while self.playing:
@@ -1124,29 +1274,7 @@ class Game:
             self.player.tasks_completed = self.missions_done
 
             # server shit — framed, buffered, non-blocking receive
-            ins, outs, ex = select.select([s], [], [], 0)
-            for inm in ins:
-                try:
-                    chunk = inm.recv(BUFFERSIZE)
-                except Exception:
-                    chunk = b''
-                if chunk:
-                    self._netbuf.extend(chunk)
-
-            # extract every complete length-prefixed frame from the buffer
-            frames = []
-            while len(self._netbuf) >= 4:
-                _n = int.from_bytes(self._netbuf[:4], 'big')
-                if len(self._netbuf) < 4 + _n:
-                    break
-                _msg = bytes(self._netbuf[4:4 + _n])
-                del self._netbuf[:4 + _n]
-                try:
-                    frames.append(pickle.loads(_msg))
-                except Exception:
-                    pass
-
-            for gameEvent in frames:
+            for gameEvent in self._recv_frames(s):
                 # if event is such that it contains below string
                 if gameEvent[0] == 'id update':
                     # generate player id

@@ -36,7 +36,19 @@ class Board:
         for i in range(0, 9):
             self.intro_help.append(pygame.image.load('Assets/Images/help/'+'help'+str(i+1)+'.png'))
         self.intro_credits = pg.image.load("Assets/Images/credits/credits.png")
-        
+        self.lobby_ship_img = pg.image.load("Assets/Maps/lobby_ship.png").convert_alpha()
+        self.lobby_flame_imgs = [pg.image.load(f"Assets/Maps/engine_flame_{i}.png").convert_alpha() for i in range(1, 7)]
+        # Left engine uses its own "- Copy" frames (only 1/2/4/5/6 exist -- no frame 3)
+        self.lobby_flame_imgs_left = [
+            pg.image.load(f"Assets/Maps/engine_flame_{i} - Copy.png").convert_alpha()
+            for i in (1, 2, 4, 5, 6)
+        ]
+        # anchor points for the engine exhaust, in lobby_ship.png's own pixel
+        # space -- placed to overlap into the turbine housing so the flame
+        # reads as coming out of it rather than floating below with a gap
+        self.lobby_left_engine_anchor = (130, 730)
+        self.lobby_right_engine_anchor = (1100, 730)
+
         self.menu_font = pg.font.Font(FONT, 35)
         self.bonus_font = pg.font.Font(FONT, 30)
         self.title_font = pg.font.Font(FONT, 90)
@@ -157,6 +169,71 @@ class Board:
         result = self.surface.blit(text, rect)
         pg.display.update()
         return result
+
+    # Layout for the lobby ship image: where it's placed/scaled on screen, and
+    # the walkable interior room, in lobby_ship.png's own 1222x1008 pixel space.
+    LOBBY_SHIP_HEIGHT_FRAC = 0.88
+    LOBBY_SHIP_TOP_FRAC = 0.10
+    LOBBY_INTERIOR_BOX = (345, 110, 875, 955)  # x0, y0, x1, y1
+
+    def get_lobby_ship_layout(self):
+        ship_h = int(self.height * self.LOBBY_SHIP_HEIGHT_FRAC)
+        scale = ship_h / self.lobby_ship_img.get_height()
+        ship_w = int(self.lobby_ship_img.get_width() * scale)
+        ship_x = self.width / 2 - ship_w / 2
+        ship_y = self.height * self.LOBBY_SHIP_TOP_FRAC
+        return ship_x, ship_y, scale, ship_w, ship_h
+
+    # Screen-space (xmin, xmax, ymin, ymax) the player can walk around in,
+    # matching the ship's interior room so they can't wander out past the hull.
+    def get_lobby_interior_bounds(self):
+        ship_x, ship_y, scale, _, _ = self.get_lobby_ship_layout()
+        x0, y0, x1, y1 = self.LOBBY_INTERIOR_BOX
+        return (ship_x + x0 * scale, ship_x + x1 * scale,
+                ship_y + y0 * scale, ship_y + y1 * scale)
+
+    # Draw Multiplayer Lobby - waiting for enough players before the match starts
+    def draw_lobby(self, player_count, min_players, seconds_left, player_image, player_pos, flame_frame, other_players=()):
+        self.surface.fill((10, 12, 20))
+
+        if seconds_left is not None:
+            status_text = f"STARTING IN {seconds_left}s"
+        else:
+            status_text = f"WAITING FOR PLAYERS... {player_count}/{min_players}"
+        self.draw_text(self.surface, status_text, self.width / 2, self.height * 0.06, self.menu_font)
+
+        ship_x, ship_y, scale, ship_w, ship_h = self.get_lobby_ship_layout()
+        ship = pg.transform.smoothscale(self.lobby_ship_img, (ship_w, ship_h))
+        self.surface.blit(ship, (ship_x, ship_y))
+
+        # Animated engine flames, anchored so they overlap into the turbine
+        # housing rather than floating below it with a visible gap. Left and
+        # right use separate image lists so they can be tuned independently.
+        flame_sets = (
+            (self.lobby_flame_imgs_left, self.lobby_left_engine_anchor),
+            (self.lobby_flame_imgs, self.lobby_right_engine_anchor),
+        )
+        for flame_imgs, (anchor_x, anchor_y) in flame_sets:
+            flame_img = flame_imgs[flame_frame % len(flame_imgs)]
+            flame_w = max(1, int(flame_img.get_width() * scale))
+            flame_h = max(1, int(flame_img.get_height() * scale))
+            flame_scaled = pg.transform.smoothscale(flame_img, (flame_w, flame_h))
+            rect = flame_scaled.get_rect()
+            rect.midtop = (ship_x + anchor_x * scale, ship_y + anchor_y * scale)
+            self.surface.blit(flame_scaled, rect)
+
+        # Everyone else waiting in the lobby, at the position they reported
+        for other_x, other_y, other_image in other_players:
+            other_scaled = pg.transform.smoothscale(other_image, (32, 32))
+            other_rect = other_scaled.get_rect(center=(other_x, other_y))
+            self.surface.blit(other_scaled, other_rect)
+
+        # Local player, walking around the lobby interior while waiting
+        player_scaled = pg.transform.smoothscale(player_image, (32, 32))
+        player_rect = player_scaled.get_rect(center=(player_pos.x, player_pos.y))
+        self.surface.blit(player_scaled, player_rect)
+
+        pg.display.update()
 
     def draw_help(self, i):
         #self.intro_help[i] = pg.transform.smoothscale(self.intro_help[i], (self.width, self.height))
