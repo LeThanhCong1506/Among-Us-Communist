@@ -102,7 +102,8 @@ class Game:
         self.timer_start = pygame.time.get_ticks()
         self.dialog_text = None
         self.dialog_until = 0
-        self.case_brief_until = 0
+        self.case_brief_active = False
+        self.case_brief_ack_rect = pg.Rect(0, 0, 0, 0)
         self.vote_row_rects = []
         self._meeting_tally_resolved = False
         self._dialog_last_night = self.night
@@ -1009,11 +1010,11 @@ class Game:
         self.board.draw_wrapped_text(self.screen, self.dialog_text, vn_font(22), WHITE,
                                      rect.inflate(-42, -28), line_spacing=5)
 
-    def start_case_brief(self, seconds=6):
-        self.case_brief_until = pygame.time.get_ticks() + int(seconds * 1000)
+    def start_case_brief(self):
+        self.case_brief_active = True
 
     def display_case_brief(self):
-        if pygame.time.get_ticks() > self.case_brief_until:
+        if not self.case_brief_active:
             return
         panel = pg.Surface((820, 292), pg.SRCALPHA)
         panel.fill((0, 0, 0, 225))
@@ -1028,7 +1029,16 @@ class Game:
                                      pg.Rect(rect.left + 42, rect.top + 76, rect.width - 84, 130), line_spacing=5)
         role = ROLE_IMPOSTER if self.player.imposter else ROLE_CREW
         role_text = role_font.render("Vai trò của bạn: " + role, True, RED if self.player.imposter else GREEN)
-        self.screen.blit(role_text, role_text.get_rect(center=(rect.centerx, rect.bottom - 42)))
+        self.screen.blit(role_text, role_text.get_rect(center=(rect.centerx - 34, rect.bottom - 42)))
+
+        self.case_brief_ack_rect = pg.Rect(0, 0, 46, 46)
+        self.case_brief_ack_rect.center = (rect.right - 64, rect.bottom - 44)
+        pg.draw.circle(self.screen, GREEN, self.case_brief_ack_rect.center, 23)
+        pg.draw.circle(self.screen, WHITE, self.case_brief_ack_rect.center, 23, 2)
+        start = (self.case_brief_ack_rect.left + 12, self.case_brief_ack_rect.centery + 1)
+        mid = (self.case_brief_ack_rect.left + 20, self.case_brief_ack_rect.bottom - 14)
+        end = (self.case_brief_ack_rect.right - 10, self.case_brief_ack_rect.top + 13)
+        pg.draw.lines(self.screen, WHITE, False, (start, mid, end), 5)
 
     def check_state_dialogs(self):
         if self.night != self._dialog_last_night:
@@ -3028,6 +3038,12 @@ class Game:
             if event.type == pg.QUIT:
                 self.quit()
 
+            if event.type == pg.MOUSEBUTTONDOWN and event.button == LEFT_MOUSE_BUTTON and self.case_brief_active:
+                if self.case_brief_ack_rect.collidepoint(pg.mouse.get_pos()):
+                    self.case_brief_active = False
+                    self.effect_sounds['selected'].play()
+                continue
+
             # This is a custom user event which calculates time interval for light ON/OFF
             if event.type == self.light_timer_event and self.light_timer_visible_status:
                 # decrement the timer that need to be displayed on screen
@@ -3072,6 +3088,8 @@ class Game:
 
 
             if event.type == pg.KEYDOWN:
+                if self.case_brief_active:
+                    continue
                 # Create a toggle key for debugging collision
                 # if key is H and game is not paused
                 if event.key == pg.K_h and not self.paused:
