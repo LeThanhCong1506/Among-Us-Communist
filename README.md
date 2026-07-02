@@ -10,7 +10,6 @@ An unofficial clone of the popular multiplayer game 'Among Us', recreated in Pyt
 * socket
 * asyncore
 * threading
-* pyaudio (optional, for voice chat)
 
 ## How to run
 
@@ -24,11 +23,6 @@ An unofficial clone of the popular multiplayer game 'Among Us', recreated in Pyt
 * Choose 'Local' from the menu
 * Enter IP Address of the server (displayed in the server console). If the server is running on the same machine as the game, use the address `127.0.0.1`.
 * Upto 5 (or more?) game clients can cannect to the server by entering the server address, if they are connected to the same network. Though, the server might crash if too many players are connected.
-
-#### Voice Chat Support (experimental)
-* To start the voice chat server `python server_voice.py`
-* To start the voice chat client `python voice.py`
-* Enter IP Address and Port of the voice chat server (displayed in the server console). 
 
 ### Controls
 
@@ -117,4 +111,3 @@ An unofficial clone of the popular multiplayer game 'Among Us', recreated in Pyt
 * [kidscancode](https://github.com/kidscancode) for their [tutorial](https://www.youtube.com/watch?v=3UxnelT9aCo&list=PLsk-HSGFjnaGQq7ybM8Lgkh5EMxUWPm2i), and [sample projects](https://github.com/kidscancode/pygame_tutorials) used as the base for the game. 
 * [Albert-91](https://github.com/Albert-91) for their [project](https://github.com/Albert-91/zombie-in-clab), used as a reference.
 * [PlainSight](https://github.com/PlainSight) for their [project](https://github.com/PlainSight/pygameblog), used as the base for multiplayer functionality.
-* [TomPrograms](https://github.com/TomPrograms) for their [project](https://github.com/TomPrograms/Python-Voice-Chat), used as the base for voice chat functionality.
