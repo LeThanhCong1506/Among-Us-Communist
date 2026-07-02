@@ -56,6 +56,15 @@ class Player(pg.sprite.Sprite):
         #self.pos = vec(x, y) * TILESIZE
         #self.emerg_play_count = 1
         self.pos = vec(pos)
+        # Remote players (player_islocal == False) only get a fresh position
+        # over the network at ~20Hz while the game renders at 60fps, so their
+        # position gets snapped to a new spot every 3rd frame -- these track
+        # a smooth interpolation between the last two network updates instead
+        # of teleporting straight to the latest one. See set_network_target().
+        self._net_prev = None
+        self._net_target = None
+        self._net_t0 = 0
+        self._net_interp_ms = 90
         self.pos_corpse = vec(0, 0)
         self.pos_corpse_img = "self.Players[p[0]].image_dead"
         self.pos_corpse_img_index = ""
@@ -235,10 +244,37 @@ class Player(pg.sprite.Sprite):
                     self.rect.y = self.pos.y
 
 
+    # Called when a fresh network position arrives for a remote player.
+    # Starts interpolating from wherever it's CURRENTLY displayed (not the
+    # previous network sample) so a late/slow update never causes a visible
+    # snap backwards.
+    def set_network_target(self, x, y):
+        target = vec(x, y)
+        if self._net_target is None:
+            # first sample we've ever seen for this player -- snap, don't slide in
+            self.pos = vec(target)
+            self._net_prev = vec(target)
+        else:
+            self._net_prev = vec(self.pos)
+        self._net_target = target
+        self._net_t0 = pg.time.get_ticks()
+
+    def _interpolate_network_position(self):
+        if self._net_target is None:
+            return
+        elapsed = pg.time.get_ticks() - self._net_t0
+        t = 1.0 if self._net_interp_ms <= 0 else min(1.0, elapsed / self._net_interp_ms)
+        self.pos = self._net_prev.lerp(self._net_target, t)
+
     def update(self):
         self.get_keys()
-        # dt = delta time used for frame independent movements - Delta time (time since last tick)
-        self.pos += self.vel * self.game.dt
+        if self.player_islocal:
+            # dt = delta time used for frame independent movements - Delta time (time since last tick)
+            self.pos += self.vel * self.game.dt
+        else:
+            # Remote player: glide toward the latest network sample instead
+            # of teleporting to it (see set_network_target).
+            self._interpolate_network_position()
 
         # 2 collision checks one for each axis x, y
         self.rect.x = self.pos.x    # pos is a vector containing x, y coordinates

@@ -1352,6 +1352,17 @@ class Game:
         lobby_flame_timer = 0
         lobby_last_net_send = 0
         lobby_other_players = []  # [(x, y, image), ...] -- everyone else waiting
+        # Same idea as Player.set_network_target in sprites.py: snapshots only
+        # arrive at ~20Hz but the lobby renders at 60fps, so without this
+        # other players visibly snap between positions instead of gliding.
+        LOBBY_NET_INTERP_MS = 90
+        lobby_interp = {}  # pid -> {'prev', 'target', 't0', 'image'}
+
+        def lobby_interp_pos(entry, now):
+            elapsed = now - entry['t0']
+            t = 1.0 if LOBBY_NET_INTERP_MS <= 0 else min(1.0, elapsed / LOBBY_NET_INTERP_MS)
+            return entry['prev'].lerp(entry['target'], t)
+
         lobby_joined_at = pygame.time.get_ticks()
         waiting_for_lobby = True
         while waiting_for_lobby:
@@ -1388,14 +1399,31 @@ class Game:
                     if started:
                         waiting_for_lobby = False
                 elif gameEvent[0] == 'player locations':
-                    others = []
+                    _snap_now = pygame.time.get_ticks()
+                    seen_ids = set()
                     for p in gameEvent[1:]:
                         if p[0] == player_id:
                             continue
                         img = lobby_resolve_other_image(p)
-                        if img is not None:
-                            others.append((p[1], p[2], img))
-                    lobby_other_players = others
+                        if img is None:
+                            continue
+                        seen_ids.add(p[0])
+                        target = vec(p[1], p[2])
+                        entry = lobby_interp.get(p[0])
+                        if entry is None:
+                            lobby_interp[p[0]] = {'prev': vec(target), 'target': vec(target),
+                                                   't0': _snap_now, 'image': img}
+                        else:
+                            # glide from wherever they're CURRENTLY displayed, not
+                            # the previous target -- avoids a snap-back if a
+                            # packet arrives late
+                            entry['prev'] = lobby_interp_pos(entry, _snap_now)
+                            entry['target'] = target
+                            entry['t0'] = _snap_now
+                            entry['image'] = img
+                    for pid in list(lobby_interp.keys()):
+                        if pid not in seen_ids:
+                            del lobby_interp[pid]  # they left the lobby
 
             keys = pg.key.get_pressed()
             move = vec(0, 0)
@@ -1464,6 +1492,15 @@ class Game:
                     message = "Phiên làm việc đã bắt đầu"
                 self.menu.game_left(self.score_list, message)
                 return
+
+            # recompute every frame (not just when a snapshot arrives) so
+            # positions glide smoothly at render framerate instead of only
+            # updating in lockstep with the ~20Hz network tick
+            lobby_other_players = [
+                (pos.x, pos.y, entry['image'])
+                for entry in lobby_interp.values()
+                for pos in (lobby_interp_pos(entry, _now),)
+            ]
 
             self.board.draw_lobby(lobby_count, lobby_min, lobby_seconds_left,
                                    self.player.image, lobby_player_pos, lobby_flame_frame,
@@ -1554,8 +1591,10 @@ class Game:
                         # check if player is already in the list and that player is not local player, since we do not want to receive
                         # data for our local player, only send it
                         elif p[0] in self.Players.keys() and p[0] != self.player.player_id:
-                            # update shit
-                            self.Players[p[0]].pos = vec(p[1], p[2])
+                            # update shit -- set_network_target smooths this over
+                            # the next few frames instead of snapping instantly,
+                            # since snapshots only arrive at ~20Hz vs 60fps render
+                            self.Players[p[0]].set_network_target(p[1], p[2])
                             self.Players[p[0]].alive_status = p[3]
                             self.Players[p[0]].sync_img = p[4]
                             self.Players[p[0]].sync_img_index = p[5]
