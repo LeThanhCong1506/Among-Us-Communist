@@ -1,14 +1,22 @@
 import socket
-import asyncore
+import select
 import random
 import pickle
 import time
 
-BUFFERSIZE = 8192
+# Larger buffer so we grab as many bytes as possible per recv().
+# Message boundaries are handled by length-prefix framing (see frame()/unframe),
+# so this value only affects how big each read chunk can be, not correctness.
+BUFFERSIZE = 65536
+PORT = 4321
+
+# Broadcast the full world snapshot to every client at a fixed rate instead of
+# once per received packet. This decouples server outgoing work from how fast
+# clients send, which is what lets it scale to ~15 players without melting.
+TICK = 0.05  # seconds -> 20 broadcasts per second
 
 print("Server Address: " + socket.gethostbyname(socket.gethostname()))
 
-outgoing = []
 
 class Minion:
   def __init__(self, player_id):
@@ -38,105 +46,168 @@ class Minion:
     self.eject_sync = False
     self.eject_img = None
 
-minionmap = {}
 
-def updateWorld(message):
-  arr = pickle.loads(message)
-  print(str(arr))
+minionmap = {}          # player_id -> Minion
+conn_buf = {}           # client socket -> bytearray of unparsed received bytes
+conn_id = {}            # client socket -> player_id
+
+
+def frame(data):
+  """Prefix a pickled payload with its 4-byte big-endian length."""
+  return len(data).to_bytes(4, 'big') + data
+
+
+def apply_update(arr):
+  """Apply one 'position update' message from a client into minionmap.
+
+  Field order is IDENTICAL to the original protocol so the game client needs
+  no changes to the message contents -- only the transport around it changed.
+  """
   player_id = arr[1]
-  x = arr[2]
-  y = arr[3]
-  alive_status = arr[4]
-  sync_img = arr[5]
-  sync_img_index = arr[6]
-  left_img_index = arr[7]
-  right_img_index = arr[8]
-  up_img_index = arr[9]
-  down_img_index = arr[10]
-  player_colour = arr[11]
-  tasks_completed = arr[12]
-  sabotagelights_sync = arr[13]
-  sabotagereactor_sync = arr[14]
-  victim_id = arr[15]
-  imposter = arr[16]
-  emergency_sync = arr[17]
-  voted = arr[18]
-  got_votes = arr[19]
-  emergency_meeting_img_sync = arr[20]
-  emergency_meeting_img_sync_report = arr[21]
-  victim_id_report = arr[22]
-  got_reported = arr[23]
-  eject_sync = arr[24]
-  eject_img = arr[25]
+  if player_id == 0:
+    return
+  if player_id not in minionmap:
+    return
 
-  if player_id == 0: return
+  m = minionmap[player_id]
+  m.x = arr[2]
+  m.y = arr[3]
+  m.alive_status = arr[4]
+  m.sync_img = arr[5]
+  m.sync_img_index = arr[6]
+  m.left_img_index = arr[7]
+  m.right_img_index = arr[8]
+  m.up_img_index = arr[9]
+  m.down_img_index = arr[10]
+  m.player_colour = arr[11]
+  m.tasks_completed = arr[12]
+  m.sabotagelights_sync = arr[13]
+  m.sabotagereactor_sync = arr[14]
+  m.victim_id = arr[15]
+  m.imposter = arr[16]
+  m.emergency_sync = arr[17]
+  m.voted = arr[18]
+  m.got_votes = arr[19]
+  m.emergency_meeting_img_sync = arr[20]
+  m.emergency_meeting_img_sync_report = arr[21]
+  m.victim_id_report = arr[22]
+  m.got_reported = arr[23]
+  m.eject_sync = arr[24]
+  m.eject_img = arr[25]
 
-  minionmap[player_id].x = x
-  minionmap[player_id].y = y
-  minionmap[player_id].alive_status = alive_status
-  minionmap[player_id].sync_img = sync_img
-  minionmap[player_id].sync_img_index = sync_img_index
-  minionmap[player_id].left_img_index = left_img_index
-  minionmap[player_id].right_img_index = right_img_index
-  minionmap[player_id].up_img_index = up_img_index
-  minionmap[player_id].down_img_index = down_img_index
-  minionmap[player_id].player_colour = player_colour
-  minionmap[player_id].tasks_completed = tasks_completed
-  minionmap[player_id].sabotagelights_sync = sabotagelights_sync
-  minionmap[player_id].sabotagereactor_sync = sabotagereactor_sync
-  minionmap[player_id].victim_id = victim_id
-  minionmap[player_id].imposter = imposter
-  minionmap[player_id].emergency_sync = emergency_sync
-  minionmap[player_id].voted = voted
-  minionmap[player_id].got_votes = got_votes
-  minionmap[player_id].emergency_meeting_img_sync = emergency_meeting_img_sync
-  minionmap[player_id].emergency_meeting_img_sync_report = emergency_meeting_img_sync_report
-  minionmap[player_id].victim_id_report = victim_id_report
-  minionmap[player_id].got_reported = got_reported
-  minionmap[player_id].eject_sync = eject_sync
-  minionmap[player_id].eject_img = eject_img
 
-  remove = []
+def build_snapshot():
+  """Build the full 'player locations' snapshot for every known player.
 
-  for i in outgoing:
-    update = ['player locations']
+  Per-player field order is IDENTICAL to the original server, so clients parse
+  it exactly as before.
+  """
+  update = ['player locations']
+  for value in minionmap.values():
+    update.append([value.player_id, value.x, value.y, value.alive_status,
+                   value.sync_img, value.sync_img_index, value.left_img_index,
+                   value.right_img_index, value.up_img_index,
+                   value.down_img_index, value.player_colour,
+                   value.tasks_completed, value.sabotagelights_sync,
+                   value.sabotagereactor_sync, value.victim_id, value.imposter,
+                   value.emergency_sync, value.voted, value.got_votes,
+                   value.emergency_meeting_img_sync,
+                   value.emergency_meeting_img_sync_report,
+                   value.victim_id_report, value.got_reported, value.eject_sync,
+                   value.eject_img])
+  return frame(pickle.dumps(update))
 
-    for key, value in minionmap.items():
-      update.append([value.player_id, value.x, value.y, value.alive_status, value.sync_img, value.sync_img_index, value.left_img_index, value.right_img_index, value.up_img_index, value.down_img_index, value.player_colour, value.tasks_completed, value.sabotagelights_sync, value.sabotagereactor_sync, value.victim_id, value.imposter, value.emergency_sync, value.voted, value.got_votes, value.emergency_meeting_img_sync, value.emergency_meeting_img_sync_report, value.victim_id_report, value.got_reported, value.eject_sync, value.eject_img])
-    
+
+def drop_client(sock):
+  """Remove a disconnected client and its player so ghosts don't pile up."""
+  pid = conn_id.pop(sock, None)
+  if pid is not None:
+    minionmap.pop(pid, None)
+  conn_buf.pop(sock, None)
+  try:
+    sock.close()
+  except Exception:
+    pass
+
+
+def main():
+  server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+  server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+  server.bind(('', PORT))
+  server.listen(16)
+  server.setblocking(False)
+
+  clients = [server]
+  last_tick = time.time()
+
+  while True:
+    # Wake up at least every TICK seconds so broadcasts stay on schedule even
+    # when no client is sending.
     try:
-      i.send(pickle.dumps(update))
+      rlist, _, _ = select.select(clients, [], [], TICK)
     except Exception:
-      remove.append(i)
-      continue
-    
-    print ('sent update data')
+      rlist = []
 
-    for r in remove:
-      outgoing.remove(r)
+    for sock in rlist:
+      if sock is server:
+        # New connection: register a player and hand it its id.
+        try:
+          conn, addr = server.accept()
+        except Exception:
+          continue
+        conn.setblocking(False)
+        clients.append(conn)
+        conn_buf[conn] = bytearray()
+        player_id = random.randint(1000, 1000000)
+        minionmap[player_id] = Minion(player_id)
+        conn_id[conn] = player_id
+        try:
+          conn.sendall(frame(pickle.dumps(['id update', player_id])))
+        except Exception:
+          clients.remove(conn)
+          drop_client(conn)
+        continue
 
-class MainServer(asyncore.dispatcher):
-  def __init__(self, port):
-    asyncore.dispatcher.__init__(self)
-    self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
-    self.bind(('', port))
-    self.listen(10)
-  def handle_accept(self):
-    conn, addr = self.accept()
-    print ('Connection address:' + addr[0] + " " + str(addr[1]))
-    outgoing.append(conn)
-    player_id = random.randint(1000, 1000000)
-    playerminion = Minion(player_id)
-    minionmap[player_id] = playerminion
-    conn.send(pickle.dumps(['id update', player_id]))
-    SecondaryServer(conn)
+      # Existing client: read whatever is available.
+      try:
+        data = sock.recv(BUFFERSIZE)
+      except Exception:
+        data = b''
+      if not data:
+        if sock in clients:
+          clients.remove(sock)
+        drop_client(sock)
+        continue
 
-class SecondaryServer(asyncore.dispatcher_with_send):
-  def handle_read(self):
-    recievedData = self.recv(BUFFERSIZE)
-    if recievedData:
-      updateWorld(recievedData)
-    else: self.close()
+      buf = conn_buf[sock]
+      buf.extend(data)
+      # Pull out every complete length-prefixed frame currently in the buffer.
+      while len(buf) >= 4:
+        n = int.from_bytes(buf[:4], 'big')
+        if len(buf) < 4 + n:
+          break
+        msg = bytes(buf[4:4 + n])
+        del buf[:4 + n]
+        try:
+          apply_update(pickle.loads(msg))
+        except Exception:
+          pass
 
-MainServer(4321)
-asyncore.loop()
+    # Fixed-rate broadcast to all clients.
+    now = time.time()
+    if now - last_tick >= TICK:
+      last_tick = now
+      snapshot = build_snapshot()
+      for c in list(clients):
+        if c is server:
+          continue
+        try:
+          c.sendall(snapshot)
+        except Exception:
+          if c in clients:
+            clients.remove(c)
+          drop_client(c)
+
+
+if __name__ == '__main__':
+  main()

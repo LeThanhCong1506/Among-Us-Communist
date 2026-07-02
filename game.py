@@ -1092,6 +1092,11 @@ class Game:
         # temp var to store dynamically generated id
         player_id = 0
 
+        # network receive buffer for length-prefixed framing, and a timestamp
+        # used to throttle how often we send our state to the server (~20 Hz)
+        self._netbuf = bytearray()
+        self._last_net_send = 0
+
         # dictionary that stores all connected players as objects, including local player. uses player id as key
         self.player = Player(self, random.choice(self.player_pos), 0, True, self.player_colour)
         self.Players = {}
@@ -1118,21 +1123,34 @@ class Game:
             # update player tasks count for server
             self.player.tasks_completed = self.missions_done
 
-            # server shit
+            # server shit — framed, buffered, non-blocking receive
             ins, outs, ex = select.select([s], [], [], 0)
             for inm in ins:
-                # receiving data from server and storing in gameEvent
-                # gameEvent = pickle.loads(inm.recv(BUFFERSIZE))
                 try:
-                    gameEvent = pickle.loads(inm.recv(BUFFERSIZE))
+                    chunk = inm.recv(BUFFERSIZE)
                 except Exception:
-                    print("yes exception")
+                    chunk = b''
+                if chunk:
+                    self._netbuf.extend(chunk)
 
+            # extract every complete length-prefixed frame from the buffer
+            frames = []
+            while len(self._netbuf) >= 4:
+                _n = int.from_bytes(self._netbuf[:4], 'big')
+                if len(self._netbuf) < 4 + _n:
+                    break
+                _msg = bytes(self._netbuf[4:4 + _n])
+                del self._netbuf[:4 + _n]
+                try:
+                    frames.append(pickle.loads(_msg))
+                except Exception:
+                    pass
+
+            for gameEvent in frames:
                 # if event is such that it contains below string
                 if gameEvent[0] == 'id update':
                     # generate player id
                     player_id = gameEvent[1]
-                    print(player_id)
                 # if event is such that it contains below string
                 if gameEvent[0] == 'player locations':
                     # remove the string
@@ -1396,13 +1414,16 @@ class Game:
                       0, self.player.imposter, self.emergency_sync, None, 0, None, self.emergency_img_sync_report, 0,
                       self.player.got_reported, self.eject_sync, self.eject_img]
 
-            # Add try exception block here
-            #s.send(pickle.dumps(ge))
-
-            try:
-               s.send(pickle.dumps(ge))
-            except Exception:
-               print("very exception")
+            # send our state to the server: length-prefixed frame, throttled to
+            # ~20 Hz so we don't flood the server 60 times a second
+            _now = pygame.time.get_ticks()
+            if _now - self._last_net_send >= 50:
+                self._last_net_send = _now
+                try:
+                    _data = pickle.dumps(ge)
+                    s.sendall(len(_data).to_bytes(4, 'big') + _data)
+                except Exception:
+                    pass
 
             # check for game end condition
             if len(self.Players) > 1:
