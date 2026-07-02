@@ -218,8 +218,16 @@ class Player(pg.sprite.Sprite):
             
             if self.vel.x != 0 and self.vel.y != 0:
                 self.vel *= 0.7071
-            
-            
+
+            # No movement key held this frame -- return to the idle pose
+            # instead of staying frozen on whatever walk-cycle frame was last
+            # shown.
+            if self.vel.x == 0 and self.vel.y == 0:
+                self.image = self.player_imgs_down[0]
+                self.sync_img = "self.Players[p[0]].player_imgs_down"
+                self.sync_img_index = "[0]"
+                self.down_img_index = 0
+
         elif self.player_islocal == True and self.alive_status == False and self.game.emergency == False:
             self.vel = vec(0, 0)
             keys = pg.key.get_pressed()

@@ -215,7 +215,13 @@ def main():
       last_tick = now
 
       count = len(minionmap)
-      if not game_started:
+      if count == 0:
+        # Everyone left -- reset so the next group to join gets a fresh
+        # lobby/countdown instead of the server "remembering" a past game
+        # started and skipping straight to gameplay for whoever connects next.
+        game_started = False
+        lobby_deadline = None
+      elif not game_started:
         if lobby_deadline is None and count >= LOBBY_MIN_PLAYERS:
           lobby_deadline = now + LOBBY_COUNTDOWN_SECONDS
         elif lobby_deadline is not None and count < LOBBY_MIN_PLAYERS:

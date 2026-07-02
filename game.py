@@ -1204,6 +1204,13 @@ class Game:
                 self.player.right_img_index = (self.player.right_img_index + 1) % len(self.player.player_imgs_right)
                 self.player.image = self.player.player_imgs_right[self.player.right_img_index]
                 self.player.sync_img = "self.Players[p[0]].player_imgs_right"
+            # No movement key held this frame -- return to the idle pose
+            # instead of staying frozen on whatever walk-cycle frame was last
+            # shown (and shown to other players in the lobby).
+            if move.length_squared() == 0:
+                self.player.image = self.player.player_imgs_down[0]
+                self.player.sync_img = "self.Players[p[0]].player_imgs_down"
+                self.player.down_img_index = 0
             if move.length_squared() > 0:
                 move.scale_to_length(LOBBY_PLAYER_SPEED * dt)
                 lobby_player_pos += move
