@@ -1703,13 +1703,9 @@ class Game:
 
             # server shit — framed, buffered, non-blocking receive
             for gameEvent in self._recv_frames(s):
-                # if event is such that it contains below string
-                if gameEvent[0] == 'id update':
-                    # generate player id
-                    player_id = gameEvent[1]
-                    self.player.player_id = player_id
-                    if len(gameEvent) > 2:
-                        self.apply_assigned_colour(gameEvent[2])
+                # 'id update' is only ever sent once, during the lobby handshake
+                # (see the waiting_for_lobby loop above) -- the server never
+                # re-sends it mid-match, so there is no handler for it here.
                 # if event is such that it contains below string
                 if gameEvent[0] == 'player locations':
                     # remove the string
