@@ -213,14 +213,18 @@ class Board:
         return (ship_x + x0 * scale, ship_x + x1 * scale,
                 ship_y + y0 * scale, ship_y + y1 * scale)
 
-    # Draw Multiplayer Lobby - waiting for enough players before the match starts
-    def draw_lobby(self, player_count, min_players, seconds_left, player_image, player_pos, flame_frame, other_players=()):
+    # Draw Multiplayer Lobby - waiting for enough players before the match starts.
+    # target_players is the room's confirmed player-count target (the same
+    # number the countdown waits for), separate from room_max_players below
+    # which is what the settings panel shows the host editing.
+    def draw_lobby(self, player_count, target_players, seconds_left, player_image, player_pos, flame_frame,
+                    other_players=(), is_host=False, room_max_players=9, room_bot_count=0, settings_dirty=False):
         self.surface.fill((10, 12, 20))
 
         if seconds_left is not None:
             status_text = f"BẮT ĐẦU SAU {seconds_left} GIÂY"
         else:
-            status_text = f"ĐANG CHỜ CÁN BỘ... {player_count}/{min_players}"
+            status_text = f"ĐANG CHỜ CÁN BỘ... {player_count}/{target_players}"
         self.draw_text(self.surface, status_text, self.width / 2, self.height * 0.06, self.menu_font)
 
         ship_x, ship_y, scale, ship_w, ship_h = self.get_lobby_ship_layout()
@@ -254,7 +258,61 @@ class Board:
         player_rect = player_scaled.get_rect(center=(player_pos.x, player_pos.y))
         self.surface.blit(player_scaled, player_rect)
 
+        self.draw_lobby_room_settings(is_host, room_max_players, room_bot_count, settings_dirty)
+
         pg.display.update()
+
+    # Clickable +/- rects for the host-only room setup panel. Sits in the
+    # left margin beside the ship art, which is empty at every screen size
+    # since the ship is centered and only ~half the screen wide.
+    def get_lobby_room_setting_rects(self):
+        bx = 34
+        bw = 28
+        return {
+            'max_minus': pg.Rect(bx, 134, bw, bw),
+            'max_plus': pg.Rect(bx + 156, 134, bw, bw),
+            'bot_minus': pg.Rect(bx, 188, bw, bw),
+            'bot_plus': pg.Rect(bx + 156, 188, bw, bw),
+            'apply': pg.Rect(bx, 230, 190, 36),
+        }
+
+    def draw_lobby_room_settings(self, is_host, room_max_players, room_bot_count, settings_dirty=False):
+        panel_h = 280 if is_host else 150
+        panel = pg.Surface((240, panel_h), pg.SRCALPHA)
+        panel.fill((0, 0, 0, 140))
+        self.surface.blit(panel, (20, 76))
+
+        title = "Thiết lập phòng (Chủ phòng)" if is_host else "Thiết lập phòng"
+        self.draw_text(self.surface, title, 140, 92, vn_font(16))
+
+        rects = self.get_lobby_room_setting_rects()
+        rows = (
+            ("Số người tối đa", rects['max_minus'], rects['max_plus'], room_max_players),
+            ("Số quái", rects['bot_minus'], rects['bot_plus'], room_bot_count),
+        )
+        label_font = vn_font(15)
+        value_font = vn_font(18)
+        for label_text, minus_rect, plus_rect, value in rows:
+            label = label_font.render(label_text, True, MENU_FONT_COLOR)
+            self.surface.blit(label, (minus_rect.x, minus_rect.y - 20))
+            value_surf = value_font.render(str(value), True, MENU_FONT_COLOR)
+            value_centre = ((minus_rect.right + plus_rect.left) // 2, minus_rect.centery)
+            self.surface.blit(value_surf, value_surf.get_rect(center=value_centre))
+            if is_host:
+                for rect, sign in ((minus_rect, "-"), (plus_rect, "+")):
+                    pg.draw.rect(self.surface, (60, 60, 70), rect, border_radius=6)
+                    pg.draw.rect(self.surface, MENU_FONT_COLOR, rect, width=2, border_radius=6)
+                    sign_surf = value_font.render(sign, True, MENU_FONT_COLOR)
+                    self.surface.blit(sign_surf, sign_surf.get_rect(center=rect.center))
+
+        if is_host:
+            apply_rect = rects['apply']
+            fill_colour = (200, 130, 20) if settings_dirty else (60, 60, 70)
+            pg.draw.rect(self.surface, fill_colour, apply_rect, border_radius=8)
+            pg.draw.rect(self.surface, MENU_FONT_COLOR, apply_rect, width=2, border_radius=8)
+            apply_label = "Cập nhật *" if settings_dirty else "Cập nhật"
+            apply_surf = value_font.render(apply_label, True, MENU_FONT_COLOR)
+            self.surface.blit(apply_surf, apply_surf.get_rect(center=apply_rect.center))
 
     # Rect of the clickable "RETURN" button shown on Help/Credits screens.
     # compact=True gives a small bottom-left button for the Help screen,

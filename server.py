@@ -72,6 +72,16 @@ conn_buf = {}           # client socket -> bytearray of unparsed received bytes
 conn_id = {}            # client socket -> player_id
 imposter_ids = []
 
+# Room setup: the first player to join a fresh lobby is the "host" and gets
+# to configure these two before the match starts. room_max_players is the
+# countdown's target headcount (NOT a join cap -- joining is always allowed
+# up to the hard MAX_PLAYERS ceiling). Defaults to LOBBY_MIN_PLAYERS so a
+# host who never opens the setup panel keeps the original auto-start-at-2
+# behaviour; raise it for a bigger classroom demo.
+host_id = None
+room_max_players = LOBBY_MIN_PLAYERS
+room_bot_count = 0
+
 
 def frame(data):
   """Prefix a pickled payload with its 4-byte big-endian length."""
@@ -156,11 +166,13 @@ def build_snapshot():
 
 
 def build_lobby_state(count, lobby_deadline, game_started, now):
-  """['lobby state', count, min_players, seconds_left_or_None, game_started, imposter_ids]"""
+  """['lobby state', count, min_players, seconds_left_or_None, game_started,
+  imposter_ids, host_id, room_max_players, room_bot_count]"""
   seconds_left = None
   if lobby_deadline is not None and not game_started:
     seconds_left = max(0, int(round(lobby_deadline - now)))
-  msg = ['lobby state', count, LOBBY_MIN_PLAYERS, seconds_left, game_started, imposter_ids]
+  msg = ['lobby state', count, LOBBY_MIN_PLAYERS, seconds_left, game_started, imposter_ids,
+         host_id, room_max_players, room_bot_count]
   return frame_message(msg)
 
 
@@ -177,7 +189,7 @@ def drop_client(sock):
 
 
 def main():
-  global imposter_ids
+  global imposter_ids, host_id, room_max_players, room_bot_count
   server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
   server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
   server.bind(('', PORT))
@@ -209,6 +221,10 @@ def main():
         if game_started:
           deny_reason = 'started'
         elif len(minionmap) >= MAX_PLAYERS:
+          # The hard ceiling is always MAX_PLAYERS, not room_max_players --
+          # the latter defaults low (LOBBY_MIN_PLAYERS) so a host who hasn't
+          # opened the setup panel still gets the old auto-start-at-2
+          # behaviour, and that must not also lock out the 3rd+ joiner.
           deny_reason = 'full'
         if deny_reason is not None:
           try:
@@ -221,11 +237,14 @@ def main():
         conn.setblocking(False)
         clients.append(conn)
         conn_buf[conn] = bytearray()
+        is_first_player = not minionmap
         player_id = random.randint(1000, 1000000)
         while player_id in minionmap:
           player_id = random.randint(1000, 1000000)
         minionmap[player_id] = Minion(player_id)
         conn_id[conn] = player_id
+        if is_first_player:
+          host_id = player_id
         continue
 
       # Existing client: read whatever is available.
@@ -258,6 +277,11 @@ def main():
               sock.sendall(frame_message(['id update', pid, minionmap[pid].player_colour]))
           elif arr and arr[0] == 'position update':
             apply_update(arr)
+          elif arr and arr[0] == 'room config':
+            pid = conn_id.get(sock)
+            if pid is not None and pid == host_id and not game_started:
+              room_max_players = max(LOBBY_MIN_PLAYERS, min(MAX_PLAYERS, int(arr[1])))
+              room_bot_count = max(0, min(9, int(arr[2])))
         except Exception:
           pass
 
@@ -274,10 +298,16 @@ def main():
         game_started = False
         lobby_deadline = None
         imposter_ids = []
+        host_id = None
+        room_max_players = LOBBY_MIN_PLAYERS
+        room_bot_count = 0
       elif not game_started:
-        if lobby_deadline is None and count >= LOBBY_MIN_PLAYERS:
+        # room_max_players doubles as the match's target size: the host sets
+        # how many are expected (default MAX_PLAYERS), and the countdown
+        # waits for exactly that many rather than a separate fixed minimum.
+        if lobby_deadline is None and count >= room_max_players:
           lobby_deadline = now + LOBBY_COUNTDOWN_SECONDS
-        elif lobby_deadline is not None and count < LOBBY_MIN_PLAYERS:
+        elif lobby_deadline is not None and count < room_max_players:
           lobby_deadline = None  # someone left before the countdown finished -- cancel it
         elif lobby_deadline is not None and now >= lobby_deadline:
           ids = list(minionmap.keys())

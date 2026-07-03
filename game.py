@@ -1375,6 +1375,19 @@ class Game:
         lobby_count = 0
         lobby_min = 2
         lobby_seconds_left = None
+        # Room setup: the first player to join a fresh server is the host and
+        # can adjust these two before the match starts (see 'room config' in
+        # server.py). lobby_max_players/lobby_bot_count are the server's
+        # confirmed values (shown read-only to non-hosts); the host edits
+        # lobby_staged_* locally with +/- and only the "Cập nhật" button
+        # actually sends them, so the room/game/text all update together
+        # instead of firing a network message on every single click.
+        lobby_host_id = None
+        lobby_max_players = 9
+        lobby_bot_count = 0
+        lobby_staged_max = 9
+        lobby_staged_bots = 0
+        lobby_settings_dirty = False
         lobby_player_pos = vec((lobby_xmin + lobby_xmax) / 2, (lobby_ymin + lobby_ymax) / 2)
         lobby_flame_frame = 0
         lobby_flame_timer = 0
@@ -1402,6 +1415,7 @@ class Game:
                 s.close()
                 self.menu.game_left(self.score_list, "Không thể kết nối tới máy chủ")
                 return
+            is_host = player_id != 0 and player_id == lobby_host_id
             for event in pg.event.get():
                 if event.type == pg.QUIT:
                     self.quit()
@@ -1410,6 +1424,31 @@ class Game:
                     self.effect_sounds['go_back'].play()
                     self.menu.game_intro()
                     return
+                if event.type == pg.MOUSEBUTTONDOWN and event.button == 1 and is_host:
+                    rects = self.board.get_lobby_room_setting_rects()
+                    if rects['max_minus'].collidepoint(event.pos):
+                        lobby_staged_max = max(2, lobby_staged_max - 1)
+                        lobby_settings_dirty = True
+                        self.effect_sounds['menu_sel'].play()
+                    elif rects['max_plus'].collidepoint(event.pos):
+                        lobby_staged_max = min(9, lobby_staged_max + 1)
+                        lobby_settings_dirty = True
+                        self.effect_sounds['menu_sel'].play()
+                    elif rects['bot_minus'].collidepoint(event.pos):
+                        lobby_staged_bots = max(0, lobby_staged_bots - 1)
+                        lobby_settings_dirty = True
+                        self.effect_sounds['menu_sel'].play()
+                    elif rects['bot_plus'].collidepoint(event.pos):
+                        lobby_staged_bots = min(9, lobby_staged_bots + 1)
+                        lobby_settings_dirty = True
+                        self.effect_sounds['menu_sel'].play()
+                    elif rects['apply'].collidepoint(event.pos):
+                        self.effect_sounds['selected'].play()
+                        try:
+                            self.send_frame(s, ['room config', lobby_staged_max, lobby_staged_bots])
+                        except Exception:
+                            pass
+                        lobby_settings_dirty = False
 
             for gameEvent in self._recv_frames(s):
                 if gameEvent[0] == 'id update':
@@ -1424,6 +1463,14 @@ class Game:
                     lobby_count, lobby_min, lobby_seconds_left, started = gameEvent[1:5]
                     if len(gameEvent) > 5:
                         self.player.imposter = player_id in gameEvent[5]
+                    if len(gameEvent) > 8:
+                        lobby_host_id, lobby_max_players, lobby_bot_count = gameEvent[6:9]
+                        # Keep the host's editable copy mirroring the server
+                        # while they're not mid-edit, so it starts in sync and
+                        # picks up the server's clamped value right after Cập
+                        # nhật is pressed.
+                        if not lobby_settings_dirty:
+                            lobby_staged_max, lobby_staged_bots = lobby_max_players, lobby_bot_count
                     if started:
                         waiting_for_lobby = False
                 elif gameEvent[0] == 'player locations':
@@ -1530,18 +1577,27 @@ class Game:
                 for pos in (lobby_interp_pos(entry, _now),)
             ]
 
-            self.board.draw_lobby(lobby_count, lobby_min, lobby_seconds_left,
+            display_max = lobby_staged_max if is_host else lobby_max_players
+            display_bots = lobby_staged_bots if is_host else lobby_bot_count
+            # The "waiting" counter targets the room's configured player
+            # count (lobby_max_players), not the separate fixed server
+            # minimum -- that's what the host just set via Cập nhật.
+            self.board.draw_lobby(lobby_count, lobby_max_players, lobby_seconds_left,
                                    self.player.image, lobby_player_pos, lobby_flame_frame,
-                                   lobby_other_players)
+                                   lobby_other_players, is_host, display_max, display_bots,
+                                   lobby_settings_dirty)
 
         # bg music
         mixer.music.play(-1)
         mixer.music.set_volume(0.7)
 
-        # remove bots
-        for b in self.bots:
+        # Keep only as many bots as the host configured in the lobby (default
+        # 0, matching the prior always-empty behaviour). Bot kills aren't
+        # networked between clients -- each client tracks its own bots'
+        # alive-status locally, same as it already tracked its own bot_count.
+        for b in list(self.bots)[lobby_bot_count:]:
             b.kill()
-        self.bot_count = 0
+        self.bot_count = min(lobby_bot_count, len(self.bots))
 
         self.killcooldown_start = pygame.time.get_ticks()
         self.sabotagecooldown_start = pygame.time.get_ticks()
@@ -1893,13 +1949,13 @@ class Game:
                     self.menu.game_over(self.score_list, *WIN_TEXTS["crew_eject"])
                     return
 
-                # When imposter kills all players
+                # When imposter kills all players (and all room-configured bots, if any)
                 for p in self.Players.values():
                     if p.alive_status == True and p.imposter == False:
                         break
                 else:
                     pass
-                    if self.emergency == False and self.kill_victim_anim == False and self.eject == False:
+                    if self.emergency == False and self.kill_victim_anim == False and self.eject == False and self.bot_count == 0:
                         pg.mixer.music.stop()  # turn off background music
                         pg.mixer.Channel(0).stop()
                         for m in self.foot_sounds['footsteps']:
@@ -2896,7 +2952,7 @@ class Game:
             self.bot_bg.fill((0, 0, 0))
             self.screen.blit(self.bot_bg, (10, 10))
             witnesses_left = sum(1 for p in self.Players.values() if p.alive_status and not p.imposter)
-            self.board.draw_bots_left(witnesses_left, 14)
+            self.board.draw_bots_left(witnesses_left + self.bot_count, 14)
 
         """ Player Name is loaded"""
         # If player is imposter then its name will be Red in color
