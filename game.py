@@ -665,6 +665,15 @@ class Game:
     # create sprites/ objects/ walls/ camera = all sprites
     def new(self):
         # initialize all variables and do all the setup for a new game
+        # task_btn is only ever instantiated inside draw() and only when the
+        # local player is a crewmate (imposters never get one) -- the click
+        # handlers in events() run unconditionally, so without this default
+        # an imposter's very first left click crashes with AttributeError.
+        self.task_btn = None
+        # map_btn is (re)created unconditionally in draw(), but events() runs
+        # before the first draw() call each frame -- default it too so a
+        # click on the very first frame can't crash before draw() ever ran.
+        self.map_btn = None
         self.all_sprites = pg.sprite.LayeredUpdates()
         # self.all_sprites = pg.sprite.Group()
         self.walls = pg.sprite.Group()
@@ -873,7 +882,11 @@ class Game:
         self.screen.blit(self.align_engine_liver_img, (pos_x, pos_y))
 
     def display_gas_can_picked(self):
-        self.screen.blit(self.gas_can_img, (WIDTH - 640, HEIGHT-110))
+        # moved up from (WIDTH-640, HEIGHT-110): that spot sat inside the
+        # bottom dialog panel's rect (see display_dialog, midbottom anchored
+        # at HEIGHT-24 with a 112px-tall panel), so the icon rendered behind/
+        # inside the popup instead of in the open HUD area.
+        self.screen.blit(self.gas_can_img, (WIDTH - 640, HEIGHT - 250))
     def display_fuel_engine_window(self):
         self.screen.blit(self.fuel_engine_window_img, (WIDTH / 3 - 45, 70))
 
@@ -920,13 +933,18 @@ class Game:
             text_font = vn_font(19)
             small_font = vn_font(15)
             for pid, candidate in self.get_vote_candidates():
+                colour_data = COLOUR_SETS.get(candidate.player_colour)
+                if colour_data is None:
+                    # colour assignment for this player hasn't synced yet --
+                    # skip the row for now instead of crashing on a bad lookup
+                    continue
                 row = pg.Rect(panel_rect.left + 42, y, panel_rect.width - 84, row_h)
                 self.vote_row_rects.append((row, pid))
                 fill = (35, 48, 63) if self.player.voted == pid else (22, 28, 38)
                 pg.draw.rect(self.screen, fill, row)
                 pg.draw.rect(self.screen, (102, 120, 138), row, 1)
 
-                sprite = pg.transform.smoothscale(COLOUR_SETS[candidate.player_colour]["down"][0], (24, 30))
+                sprite = pg.transform.smoothscale(colour_data["down"][0], (24, 30))
                 self.screen.blit(sprite, (row.left + 8, row.top))
                 colour_name = COLOR_DISPLAY_NAMES.get(candidate.player_colour, candidate.player_colour)
                 label = f"Cán bộ {colour_name}  #{pid}"
@@ -3201,7 +3219,7 @@ class Game:
             # if left mouse button is pressed and game is not paused
             if event.type == pg.MOUSEBUTTONDOWN and event.button == LEFT_MOUSE_BUTTON and not self.paused and not self.emerg_meeting_button_status and not self.view_admin_security_monitor_window_status and self.player.alive_status:
                 pos = pg.mouse.get_pos()
-                if self.map_btn.click(pos):
+                if self.map_btn is not None and self.map_btn.click(pos):
                     if self.map_btn.button_type == "mp_btn":
                         self.effect_sounds['map_click2'].play()
                         self.mini_map_button_status = not self.mini_map_button_status
@@ -3219,10 +3237,12 @@ class Game:
                         self.menu.game_left(self.score_list, 'Bạn đã rời phiên làm việc')
                         self.game_left = True
 
-            # Task Button
+            # Task Button -- task_btn only exists once draw() has created it
+            # for a crewmate (imposters never get one, see new()); guard
+            # against it being None so a stray click can't crash the game.
             if event.type == pg.MOUSEBUTTONDOWN and event.button == LEFT_MOUSE_BUTTON and not self.paused and self.task_button_show_status and not self.view_admin_security_monitor_window_status and not self.mini_map_button_status:
                 pos = pg.mouse.get_pos()
-                if self.task_btn.click(pos):
+                if self.task_btn is not None and self.task_btn.click(pos):
                     if self.task_btn.button_type == "tsk_btn":
                         self.effect_sounds['map_click'].play()
                         self.task_button_click_status = not self.task_button_click_status
@@ -3230,15 +3250,20 @@ class Game:
             if self.gamemode == "Multiplayer":
                 if event.type == pg.MOUSEBUTTONDOWN and event.button == LEFT_MOUSE_BUTTON and not self.paused and not self.task_button_show_status:
                     pos = pg.mouse.get_pos()
-                    if self.task_btn.click(pos):
+                    if self.task_btn is not None and self.task_btn.click(pos):
                         if self.task_btn.button_type == "tsk_btn":
                             self.effect_sounds['map_click'].play()
                             self.task_button_click_status = not self.task_button_click_status
 
 
             """ OPEN CAFETERIA COMPUTER BUTTONS & EVENTS """
-            # Open Cafe Computer and Toggle Imposter Status
-            if event.type == pg.MOUSEBUTTONDOWN and event.button == LEFT_MOUSE_BUTTON and not self.paused and self.open_cafe_comp_window_status:
+            # Open Cafe Computer and Toggle Imposter Status -- Freeplay only.
+            # The window can currently only OPEN in Freeplay (see the trigger
+            # near "Open Cafeteria Computer Task trigger"), but this handler
+            # itself had no such guard; gating it here too means a future
+            # change to the open-trigger can't silently let a Multiplayer
+            # player flip their own imposter flag out of sync with the server.
+            if event.type == pg.MOUSEBUTTONDOWN and event.button == LEFT_MOUSE_BUTTON and not self.paused and self.open_cafe_comp_window_status and self.gamemode == "Freeplay":
                 pos = pg.mouse.get_pos()
                 if self.open_cafe_comp_check_btn.click(pos):
                     self.open_cafe_comp_check_pic_status = not self.open_cafe_comp_check_pic_status
@@ -3350,12 +3375,15 @@ class Game:
             if event.type == pg.MOUSEBUTTONDOWN and event.button == LEFT_MOUSE_BUTTON and not self.paused and (
                     self.emerg_meeting_button_status or self.emerg_meeting_report_status) and self.emergency == True and self.player.alive_status == True:
                 pos = pg.mouse.get_pos()
-                if self.player.voted is None:
-                    for row, target in self.vote_row_rects:
-                        if row.collidepoint(pos):
+                for row, target in self.vote_row_rects:
+                    if row.collidepoint(pos):
+                        if self.player.voted == target:
+                            # clicking your own already-selected row retracts the vote
+                            self.player.voted = None
+                        elif self.player.voted is None:
                             self.player.voted = target
-                            self.effect_sounds['vote_sound'].play()
-                            break
+                        self.effect_sounds['vote_sound'].play()
+                        break
 
             """ ELECTRIC WIRES TASK BUTTONS & EVENTS"""
             if event.type == pg.MOUSEBUTTONDOWN and event.button == LEFT_MOUSE_BUTTON and not self.paused and self.electricity_wire_window_status:

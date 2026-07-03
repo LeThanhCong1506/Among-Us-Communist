@@ -195,7 +195,7 @@ class Board:
     # the walkable interior room, in lobby_ship.png's own 1222x1008 pixel space.
     LOBBY_SHIP_HEIGHT_FRAC = 0.88
     LOBBY_SHIP_TOP_FRAC = 0.10
-    LOBBY_INTERIOR_BOX = (345, 110, 875, 955)  # x0, y0, x1, y1
+    LOBBY_INTERIOR_BOX = (345, 300, 875, 955)  # x0, y0, x1, y1
 
     def get_lobby_ship_layout(self):
         ship_h = int(self.height * self.LOBBY_SHIP_HEIGHT_FRAC)
