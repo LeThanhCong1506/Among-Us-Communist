@@ -188,12 +188,12 @@ class Menu:
                                 self.game.runfreeplay()
                                 return
                             elif self.game.gamemode == "Multiplayer":
-                                # Skip manual IP entry -- connect straight to the
-                                # configured host so players don't type anything.
+                                # Ask for the server's address -- this machine's own
+                                # auto-detected IP is only correct when client and
+                                # server run on the SAME machine, so it can't be
+                                # used blindly for a real cross-machine connection.
                                 self.game.effect_sounds['main_menu_music'].stop()
-                                self.game.new()
-                                self.game.serveraddress = MULTIPLAYER_SERVER_IP
-                                self.game.runmultiplayer()
+                                self.game_input_address()
                                 return
                     elif len(self.word) < self.word_count_name:
                         self.word += event.unicode
@@ -202,6 +202,10 @@ class Menu:
  
     def game_input_address(self):
         word_ip = ""
+        # If left blank, Enter connects to this machine's own LAN IP -- correct
+        # only when the server also runs on this machine (same-PC testing).
+        # For a real cross-machine connection, type the host's actual address.
+        suggested_ip = MULTIPLAYER_SERVER_IP
         while True:
             pg.display.flip()
             for event in pg.event.get():
@@ -215,19 +219,19 @@ class Menu:
                         self.game.effect_sounds['backspace'].play()
                         word_ip = word_ip[:-1]
                     elif event.key == pg.K_RETURN:
-                        if len(word_ip) > 0:   # if IP Address is not null
-                            # stop main menu music before entering game
-                            self.game.effect_sounds['main_menu_music'].stop()
-                            #self.game.missions_done = 1   # Reset mission count on game completion
-                            #self.game.invisible_play_count = 0
-                            self.game.new()
-                            self.game.serveraddress = word_ip
-                            self.game.runmultiplayer()
-                            return
+                        address = word_ip if len(word_ip) > 0 else suggested_ip
+                        # stop main menu music before entering game
+                        self.game.effect_sounds['main_menu_music'].stop()
+                        #self.game.missions_done = 1   # Reset mission count on game completion
+                        #self.game.invisible_play_count = 0
+                        self.game.new()
+                        self.game.serveraddress = address
+                        self.game.runmultiplayer()
+                        return
                     elif len(word_ip) < self.word_count_ip:
                         word_ip += event.unicode
                         self.game.effect_sounds['keypress'].play()
-                self.game.board.draw_input_address(word_ip, WIDTH / 2, HEIGHT / 2)
+                self.game.board.draw_input_address(word_ip, WIDTH / 2, HEIGHT / 2, suggested_ip)
 
     def game_over(self, scoreboard, message, subtitle='', lesson=''):
         while True:

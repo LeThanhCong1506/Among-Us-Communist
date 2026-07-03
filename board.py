@@ -177,7 +177,7 @@ class Board:
         pg.display.update()
         return result
 
-    def draw_input_address(self, word: str, x: int, y: int):
+    def draw_input_address(self, word: str, x: int, y: int, suggested_ip: str = None):
         self.intro_bg2 = pg.transform.smoothscale(self.intro_bg2, (self.width, self.height))
         self.surface.blit(self.intro_bg2, (0, 0), (0, 0, self.width, self.height))
         self.intro_enteraddress = pg.transform.smoothscale(self.intro_enteraddress, (int(self.width / 2), int(self.height * 0.1)))
@@ -188,6 +188,9 @@ class Board:
         rect = text.get_rect()
         rect.center = x, y
         result = self.surface.blit(text, rect)
+        if suggested_ip:
+            hint = f"Để trống rồi nhấn Enter để dùng IP máy này: {suggested_ip}"
+            self.draw_text(self.surface, hint, self.width / 2, self.height * 0.68, vn_font(18))
         pg.display.update()
         return result
 
