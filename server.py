@@ -22,7 +22,20 @@ LOBBY_COUNTDOWN_SECONDS = 10
 MAX_PLAYERS = 9
 SERVER_COLOURS = ["Red", "Blue", "Orange", "Yellow", "Green", "Black", "Brown", "Pink", "Purple", "White"]
 
-print("Server Address: " + socket.gethostbyname(socket.gethostname()))
+def get_local_lan_ip():
+  """Same detection method as settings.get_local_lan_ip(), duplicated here
+  so server.py doesn't need to import pygame via settings.py."""
+  s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+  try:
+    s.connect(("8.8.8.8", 80))
+    return s.getsockname()[0]
+  except OSError:
+    return "127.0.0.1"
+  finally:
+    s.close()
+
+
+print("Server Address: " + get_local_lan_ip())
 
 
 class Minion:

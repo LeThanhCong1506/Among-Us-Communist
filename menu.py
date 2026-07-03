@@ -51,7 +51,9 @@ class Menu:
         else:
             pass
         self.i = 0.41
-        self.set_menu_cursor_limit(0.12, 300, 500, INTRO_SPRITE_POS_X, self.game.board.draw_menu, self.game_help, 40)
+        # min_click_y=225 keeps stray clicks above the Freeplay item (e.g. on
+        # the logo) from falling through to the "else: quit_game()" branch.
+        self.set_menu_cursor_limit(0.12, 300, 500, INTRO_SPRITE_POS_X, self.game.board.draw_menu, self.game_help, 40, min_click_y=225)
         if 225 < self.pos_y < 300:
             self.game.gamemode = "Freeplay"
             self.game_choose_character()
@@ -91,10 +93,11 @@ class Menu:
         i = 0
         while True:
             pg.display.flip()
+            return_rect = self.game.board.get_return_button_rect(compact=True)
             for event in pg.event.get():
                 if event.type == pg.QUIT:
                     quit_game()
-                if event.type == pg.KEYDOWN:
+                elif event.type == pg.KEYDOWN:
                     if event.key == pg.K_ESCAPE:
                         self.game.effect_sounds['go_back'].play()
                         self.game_intro()
@@ -104,19 +107,28 @@ class Menu:
                     elif event.key == pg.K_LEFT or event.key == pg.K_a or event.key == pg.K_UP or event.key == pg.K_w:
                         if i > 0:
                             i -= 1
-                    elif event.key == pg.K_RETURN:
-                        print()
-                self.game.board.draw_help(i)
-        
+                elif event.type == pg.MOUSEBUTTONDOWN and event.button == 1:
+                    if return_rect.collidepoint(event.pos):
+                        self.game.effect_sounds['go_back'].play()
+                        self.game_intro()
+            self.game.board.draw_help(i)
+
     def game_credits(self):
         while True:
             pg.display.flip()
+            return_rect = self.game.board.get_return_button_rect()
             for event in pg.event.get():
-                if event.type == pg.KEYDOWN:
+                if event.type == pg.QUIT:
+                    quit_game()
+                elif event.type == pg.KEYDOWN:
                     if event.key == pg.K_ESCAPE or event.key == pg.K_RETURN:
                         self.game.effect_sounds['go_back'].play()
                         self.game_intro()
-                self.game.board.draw_credits()
+                elif event.type == pg.MOUSEBUTTONDOWN and event.button == 1:
+                    if return_rect.collidepoint(event.pos):
+                        self.game.effect_sounds['go_back'].play()
+                        self.game_intro()
+            self.game.board.draw_credits()
 
 
     def game_choose_character(self):
@@ -220,49 +232,54 @@ class Menu:
             for event in pg.event.get():
                 if event.type == pg.QUIT:
                     quit_game()
-                elif event.type == pg.KEYDOWN:
-                    if event.key == pg.K_SPACE or event.key == pg.K_RETURN:
-                        self.game.effect_sounds['main_menu_music'].play(-1)
-                        # Stop winning sound effect before returning to main menu
-                        self.game.effect_sounds["victory_crew"].stop()
-                        if self.game.pause_quit_button_status and self.game.paused:
-                            self.game.quit()
-                        else:
-                            return
+                confirmed = (event.type == pg.KEYDOWN and event.key in (pg.K_SPACE, pg.K_RETURN)) or \
+                    (event.type == pg.MOUSEBUTTONDOWN and event.button == 1)
+                if confirmed:
+                    self.game.effect_sounds['main_menu_music'].play(-1)
+                    # Stop winning sound effect before returning to main menu
+                    self.game.effect_sounds["victory_crew"].stop()
+                    if self.game.pause_quit_button_status and self.game.paused:
+                        self.game.quit()
+                    else:
+                        return
     def game_over_imposter(self, scoreboard, message, subtitle='', lesson=''):
         while True:
             self.game.board.draw_game_over_imposter(scoreboard, message, subtitle, lesson)
             for event in pg.event.get():
                 if event.type == pg.QUIT:
                     quit_game()
-                elif event.type == pg.KEYDOWN:
-                    if event.key == pg.K_SPACE or event.key == pg.K_RETURN:
-                        self.game.effect_sounds['main_menu_music'].play(-1)
-                        # Stop winning sound effect before returning to main menu
-                        self.game.effect_sounds["victory_imposter"].stop()
-                        if self.game.pause_quit_button_status and self.game.paused:
-                            self.game.quit()
-                        else:
-                            return
-                            
+                confirmed = (event.type == pg.KEYDOWN and event.key in (pg.K_SPACE, pg.K_RETURN)) or \
+                    (event.type == pg.MOUSEBUTTONDOWN and event.button == 1)
+                if confirmed:
+                    self.game.effect_sounds['main_menu_music'].play(-1)
+                    # Stop winning sound effect before returning to main menu
+                    self.game.effect_sounds["victory_imposter"].stop()
+                    if self.game.pause_quit_button_status and self.game.paused:
+                        self.game.quit()
+                    else:
+                        return
+
     def game_left(self, scoreboard, message):
         while True:
             self.game.board.draw_game_left(scoreboard, message)
             for event in pg.event.get():
                 if event.type == pg.QUIT:
                     quit_game()
-                elif event.type == pg.KEYDOWN:
-                    if event.key == pg.K_SPACE or event.key == pg.K_RETURN:
-                        self.game.effect_sounds['main_menu_music'].play(-1)
-                        # Stop winning sound effect before returning to main menu
-                        self.game.effect_sounds["victory_crew"].stop()
-                        if self.game.pause_quit_button_status and self.game.paused:
-                            self.game.quit()
-                        else:
-                            return
-                            #self.game_intro()
+                confirmed = (event.type == pg.KEYDOWN and event.key in (pg.K_SPACE, pg.K_RETURN)) or \
+                    (event.type == pg.MOUSEBUTTONDOWN and event.button == 1)
+                if confirmed:
+                    self.game.effect_sounds['main_menu_music'].play(-1)
+                    # Stop winning sound effect before returning to main menu
+                    self.game.effect_sounds["victory_crew"].stop()
+                    if self.game.pause_quit_button_status and self.game.paused:
+                        self.game.quit()
+                    else:
+                        return
 
-    def set_menu_cursor_limit(self, i_value, top, bottom, pos, draw, previous, size=50):
+    # min_click_y guards screens whose out-of-range fallback is destructive
+    # (the main menu's "else: quit_game()") -- clicks above it are ignored so
+    # a stray click near the logo can't be misread as picking the last item.
+    def set_menu_cursor_limit(self, i_value, top, bottom, pos, draw, previous, size=50, min_click_y=0):
         while True:
             self.set_position(pos)
             draw(self.set_menu_cursor(size))
@@ -282,6 +299,14 @@ class Menu:
                             self.i += i_value
                             self.game.effect_sounds['menu_sel'].play()
                     if event.key == pg.K_SPACE or event.key == pg.K_RETURN:
+                        self.game.effect_sounds['selected'].play()
+                        return False
+                elif event.type == pg.MOUSEMOTION:
+                    if event.pos[1] >= min_click_y:
+                        self.i = event.pos[1] / HEIGHT
+                elif event.type == pg.MOUSEBUTTONDOWN and event.button == 1:
+                    if event.pos[1] >= min_click_y:
+                        self.i = event.pos[1] / HEIGHT
                         self.game.effect_sounds['selected'].play()
                         return False
 

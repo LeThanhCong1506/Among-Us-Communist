@@ -256,16 +256,49 @@ class Board:
 
         pg.display.update()
 
+    # Rect of the clickable "RETURN" button shown on Help/Credits screens.
+    # compact=True gives a small bottom-left button for the Help screen,
+    # whose baked-in illustrations use nearly the whole frame -- the larger
+    # bottom-center spot (used on Credits, matching the choose-character
+    # screen's own return button) would overlap that artwork/captions.
+    def get_return_button_rect(self, compact=False):
+        if compact:
+            w, h = 150, 46
+            x, y = 24, self.height - h - 20
+        else:
+            w = int(self.width / 4)
+            h = int(self.height * 0.1)
+            x = self.width / 2.6
+            y = self.height * 0.85
+        return pg.Rect(x, y, w, h)
+
+    def draw_return_button(self, compact=False):
+        rect = self.get_return_button_rect(compact)
+        btn = pg.transform.smoothscale(self.intro_return, (rect.width, rect.height))
+        self.surface.blit(btn, rect)
+
     def draw_help(self, i):
         #self.intro_help[i] = pg.transform.smoothscale(self.intro_help[i], (self.width, self.height))
         self.intro_help[i] = pg.transform.scale(self.intro_help[i], (self.width, self.height))
         self.surface.blit(self.intro_help[i], (0, 0), (0, 0, self.width, self.height))
+        self.draw_return_button(compact=True)
         pg.display.update()
-        
+
+    CREDIT_NAMES = [
+        "Lê Thành Công - SE183504",
+        "Lê Quốc Khánh - SE171151",
+        "Dương Thành Phát - SE183374",
+    ]
+
     def draw_credits(self):
         #self.intro_credits = pg.transform.smoothscale(self.intro_credits, (self.width, self.height))
         self.intro_credits = pg.transform.scale(self.intro_credits, (self.width, self.height))
         self.surface.blit(self.intro_credits, (0, 0), (0, 0, self.width, self.height))
+        pos_y = self.height * 0.45
+        for name in self.CREDIT_NAMES:
+            self.draw_text(self.surface, name, self.width / 2, pos_y, self.bonus_font)
+            pos_y += self.height * 0.1
+        self.draw_return_button()
         pg.display.update()
 
     def draw_pause(self):

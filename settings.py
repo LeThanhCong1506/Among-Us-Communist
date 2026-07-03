@@ -1,4 +1,24 @@
+import socket
 import pygame
+
+
+def get_local_lan_ip():
+    """Best-effort detection of this machine's current LAN IP.
+
+    Opens a UDP socket "connected" to a public address without sending
+    any packets -- the OS just picks the outbound interface for that
+    route, which is normally the LAN adapter. Falls back to localhost
+    if the machine has no network route (e.g. no cable/Wi-Fi).
+    """
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(("8.8.8.8", 80))
+        return s.getsockname()[0]
+    except OSError:
+        return "127.0.0.1"
+    finally:
+        s.close()
+
 
 # define some colors (R, G, B)
 WHITE = (255, 255, 255)
@@ -18,7 +38,7 @@ MENU_FONT_COLOR = (255, 255, 255)
 WIDTH = 1280   # 16 * 64 or 32 * 32 or 64 * 16
 HEIGHT = 640  # 16 * 48 or 32 * 24 or 64 * 12
 FPS = 60
-MULTIPLAYER_SERVER_IP = "192.168.1.160"  # host machine's LAN IP; change this if the host changes
+MULTIPLAYER_SERVER_IP = get_local_lan_ip()  # auto-detected each run; only correct when client + server run on this same machine
 TITLE = "Multi Player Game"
 BGCOLOR = Brown
 NO_OF_MISSIONS = 8
