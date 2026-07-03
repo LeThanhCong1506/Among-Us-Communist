@@ -2677,7 +2677,7 @@ class Game:
         # if player is impostor then show him imposter progress bar else show normal task progress bar
         if self.player.imposter:
             if not self.clear_asteroid_task_window_status:
-                self.draw_progress_bar_imposter(self.screen, 275, 10, self.bot_killed)
+                self.draw_progress_bar_imposter(self.screen, 252, 10, self.bot_killed)
         else:
             if not self.clear_asteroid_task_window_status:
                 self.draw_progress_bar(self.screen, 75, 10, self.missions_done)
@@ -3136,15 +3136,15 @@ class Game:
         # Show bot alive count only to impostors
         # if game mode is Freeplay and player is imposter then show bot-alive
         if self.bot_count_show_status and self.gamemode == "Freeplay" and self.player.imposter and not self.clear_asteroid_task_window_status:
-            self.bot_bg = pg.Surface((255, 33)).convert_alpha()
+            self.bot_bg = pg.Surface((220, 33)).convert_alpha()
             self.bot_bg.fill((0, 0, 0))
-            self.screen.blit(self.bot_bg, (10, 10))
+            self.screen.blit(self.bot_bg, (20, 10))
             self.board.draw_bots_left(self.bot_count, 14)
         # if game mode is Multiplayer and player is imposter then show bot-alive
         if self.bot_count_show_status and self.gamemode == "Multiplayer" and self.player.imposter and not self.clear_asteroid_task_window_status:
-            self.bot_bg = pg.Surface((255, 33)).convert_alpha()
+            self.bot_bg = pg.Surface((220, 33)).convert_alpha()
             self.bot_bg.fill((0, 0, 0))
-            self.screen.blit(self.bot_bg, (10, 10))
+            self.screen.blit(self.bot_bg, (20, 10))
             witnesses_left = sum(1 for p in self.Players.values() if p.alive_status and not p.imposter)
             self.board.draw_bots_left(witnesses_left, 14)
 
@@ -3957,7 +3957,7 @@ class Game:
 
     def draw_progress_bar_imposter(self, screen_surface, x, y, players_killed):
         color = RED
-        width = 350
+        width = 280
         height = 32
         # progress_width translucent black background bar
         self.bg_bar2 = pg.Surface((width, height)).convert_alpha()
