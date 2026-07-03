@@ -12,8 +12,11 @@ pg.mixer.init()
 class MenuCursor(Drawable, pg.sprite.Sprite):
 
     def __init__(self, game, x, y, width=20, height=20):
-        super(MenuCursor, self).__init__(width, height, x, y)
+        # Init the Sprite base first: in pygame-ce 2.5+ Sprite.__init__ resets
+        # self.rect/self.image to None, which would otherwise wipe the rect that
+        # Drawable.__init__ builds. Running Drawable second keeps a valid rect.
         pg.sprite.Sprite.__init__(self)
+        super(MenuCursor, self).__init__(width, height, x, y)
         self.image = self.surface
         self.game = game
         self.width = width
