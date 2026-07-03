@@ -1,0 +1,11 @@
+Metadata-Version: 2.4
+Name: FYP
+Version: 0.1
+Summary: A general enhancement utility
+Author: ZFR
+Author-email: le...@null.com
+License-File: LICENSE
+Dynamic: author
+Dynamic: author-email
+Dynamic: license-file
+Dynamic: summary

@@ -55,7 +55,13 @@ class Game:
         # pg.key.set_repeat(100, 100)
         self.missions_done = 0  # Access this variable, increment everytime a mission is completed
         # root directory is game_folder
-        self.game_folder = path.dirname(__file__)
+        # In a frozen build (cx_Freeze/PyInstaller) this module's __file__
+        # resolves inside lib/library.zip, not next to the exe where Assets/
+        # actually lives -- use the exe's own location instead.
+        if getattr(sys, 'frozen', False):
+            self.game_folder = path.dirname(sys.executable)
+        else:
+            self.game_folder = path.dirname(__file__)
         # 2nd parameter is folder location
         self.img_folder = path.join(self.game_folder, 'Assets/Images')
         self.walls_img_folder = path.join(self.game_folder, 'Assets/Images/Walls')
@@ -647,7 +653,7 @@ class Game:
         self.bgY = 0
 
         # Background music
-        self.asteroid_bg = mixer.Sound("Assets/Sounds/Clear Asteroids/AMB_Space.wav")
+        self.asteroid_bg = mixer.Sound("Assets/Sounds/Clear Asteroids/AMB_Space.ogg")
         # Bullet Sound
         self.bullet_sound = mixer.Sound("Assets/Sounds/Clear Asteroids/fire3.mp3")
         # Collision Sound
