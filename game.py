@@ -1093,10 +1093,10 @@ class Game:
         panel_width = WIDTH - 180
         max_text_width = panel_width - 84
         line_count = len(self.board.wrap_text_lines(self.dialog_text, font, max_text_width))
-        panel_height = min(190, max(112, line_count * (font.get_height() + 5) + 36))
+        panel_height = min(190, max(64, line_count * (font.get_height() + 5) + 36))
         panel = pg.Surface((panel_width, panel_height), pg.SRCALPHA)
         panel.fill((0, 0, 0, 210))
-        rect = panel.get_rect(midbottom=(WIDTH / 2, HEIGHT - 24))
+        rect = panel.get_rect(midbottom=(WIDTH / 2, HEIGHT - 10))
         self.screen.blit(panel, rect)
         self.board.draw_wrapped_text(self.screen, self.dialog_text, font, WHITE,
                                      rect.inflate(-42, -28), line_spacing=5)
