@@ -919,38 +919,64 @@ class Game:
         colour = (255, 215, 60) if ready else (110, 110, 110)
         pg.draw.rect(self.screen, colour, rect.inflate(8, 8), width=3, border_radius=10)
 
+    def _draw_icon_key_label(self, rect, key_text, ready, placement="above"):
+        font = vn_font(13)
+        text_colour = WHITE if ready else LIGHTGREY
+        label_text = font.render(key_text, True, text_colour)
+        label_rect = label_text.get_rect()
+        label_rect.inflate_ip(16, 7)
+        if placement == "below":
+            label_rect.midtop = (rect.centerx, rect.bottom + 5)
+        else:
+            label_rect.midbottom = (rect.centerx, rect.top - 5)
+
+        label_bg = pg.Surface(label_rect.size, pg.SRCALPHA)
+        pg.draw.rect(label_bg, (0, 0, 0, 220), label_bg.get_rect(), border_radius=6)
+        self.screen.blit(label_bg, label_rect)
+        border_colour = (255, 215, 60) if ready else (120, 120, 120)
+        pg.draw.rect(self.screen, border_colour, label_rect, width=1, border_radius=6)
+        self.screen.blit(label_text, label_text.get_rect(center=label_rect.center))
+
     def display_light_bulb_icon(self):
         rect = self.get_action_icon_rects()['lights']
         self._draw_icon_affordance(rect, ready=True)
         self.screen.blit(self.light_bulb_icon, rect)
+        self._draw_icon_key_label(rect, "CTRL", ready=True)
     def display_light_bulb_icon_dim(self):
         rect = self.get_action_icon_rects()['lights']
         self._draw_icon_affordance(rect, ready=False)
         self.screen.blit(self.light_bulb_icon_dim, rect)
+        self._draw_icon_key_label(rect, "CTRL", ready=False)
     def display_sabotage_icon(self):
         rect = self.get_action_icon_rects()['sabotage']
         self._draw_icon_affordance(rect, ready=True)
         self.screen.blit(self.sabotage_icon, rect)
+        self._draw_icon_key_label(rect, "SHIFT", ready=True)
     def display_sabotage_icon_dim(self):
         rect = self.get_action_icon_rects()['sabotage']
         self._draw_icon_affordance(rect, ready=False)
         self.screen.blit(self.sabotage_icon_dim, rect)
+        self._draw_icon_key_label(rect, "SHIFT", ready=False)
     def display_kill_icon(self):
         rect = self.get_action_icon_rects()['kill']
         self._draw_icon_affordance(rect, ready=True)
         self.screen.blit(self.kill_icon, rect)
+        self._draw_icon_key_label(rect, "ENTER", ready=True)
     def display_kill_icon_dim(self):
         rect = self.get_action_icon_rects()['kill']
         self._draw_icon_affordance(rect, ready=False)
         self.screen.blit(self.kill_icon_dim, rect)
+        self._draw_icon_key_label(rect, "ENTER", ready=False)
     def display_emergency_icon(self):
         rect = self.get_action_icon_rects()['emergency']
         self._draw_icon_affordance(rect, ready=True)
         self.screen.blit(self.emergency_icon, rect)
+        self._draw_icon_key_label(rect, "SPACE", ready=True)
     def display_emergency_icon_dim(self):
         rect = self.get_action_icon_rects()['emergency']
         self._draw_icon_affordance(rect, ready=False)
         self.screen.blit(self.emergency_icon_dim, rect)
+        self._draw_icon_key_label(rect, "SPACE", ready=False)
 
     # CHAT
     def display_chat(self):
@@ -2651,7 +2677,7 @@ class Game:
         # if player is impostor then show him imposter progress bar else show normal task progress bar
         if self.player.imposter:
             if not self.clear_asteroid_task_window_status:
-                self.draw_progress_bar_imposter(self.screen, 120, 10, self.bot_killed)
+                self.draw_progress_bar_imposter(self.screen, 275, 10, self.bot_killed)
         else:
             if not self.clear_asteroid_task_window_status:
                 self.draw_progress_bar(self.screen, 75, 10, self.missions_done)
@@ -2665,12 +2691,16 @@ class Game:
             self.task_btn = Button(self, "Nhiệm vụ", 14, 92, 33, 10, 10, "tsk_btn", WHITE, Transparent_Black, None, None,
                                    None, 0)
             self.task_btn.draw_text(self.screen)
+            self._draw_icon_key_label(pg.Rect(self.task_btn.x, self.task_btn.y, self.task_btn.width, self.task_btn.height),
+                                      "CLICK", ready=True, placement="below")
 
         # If task button show check is true and game mode is Multiplayer and player is crewmate then show task button only
         if self.task_button_show_status and self.gamemode == "Multiplayer" and not self.player.imposter:
             self.task_btn = Button(self, "Nhiệm vụ", 14, 92, 33, 10, 10, "tsk_btn", WHITE, Transparent_Black, None, None,
                                    None, 0)
             self.task_btn.draw_text(self.screen)
+            self._draw_icon_key_label(pg.Rect(self.task_btn.x, self.task_btn.y, self.task_btn.width, self.task_btn.height),
+                                      "CLICK", ready=True, placement="below")
 
         if self.gamemode == "Multiplayer":
             if not self.task_button_show_status and not self.player.imposter:
@@ -2678,6 +2708,8 @@ class Game:
                                        None,
                                        None, 0)
                 self.task_btn.draw_text(self.screen)
+                self._draw_icon_key_label(pg.Rect(self.task_btn.x, self.task_btn.y, self.task_btn.width, self.task_btn.height),
+                                          "CLICK", ready=True, placement="below")
 
         # Mini Map button
         # We show mini map only to alive players not ghosts
@@ -2685,6 +2717,8 @@ class Game:
                               Transparent_Black, "Assets/Images/UI/map_button.png", 56, 56, 255)
         if self.player.alive_status:
             self.map_btn.draw_Image(self.screen)
+            self._draw_icon_key_label(pg.Rect(self.map_btn.x, self.map_btn.y, self.map_btn.width, self.map_btn.height),
+                                      "TAB", ready=True, placement="below")
 
         # # AMBIENT SOUND CODE OPENS HERE -------------------------------------------------------------
         self.gamefuctions.load_ambient_sounds()
@@ -3945,11 +3979,8 @@ class Game:
         # progress bar text
         taskbar_font = vn_font(12)
         text_surface = taskbar_font.render("BỊT ĐẦU MỐI TẤT CẢ NHÂN CHỨNG", True, WHITE)
-        text_surface2 = taskbar_font.render("BỊT ĐẦU MỐI TẤT CẢ NHÂN CHỨNG", True, WHITE)
-        if self.gamemode == "Freeplay":
-            self.screen.blit(text_surface, (138, 17))
-        else:
-            self.screen.blit(text_surface2, (138, 17))
+        text_rect = text_surface.get_rect(center=(x + width / 2, y + height / 2))
+        self.screen.blit(text_surface, text_rect)
 
         # 4th parameter is the thickness of border of rectangle
         pg.draw.rect(screen_surface, WHITE, outline_rect, 2)
