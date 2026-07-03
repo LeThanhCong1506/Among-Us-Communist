@@ -46,8 +46,14 @@ class QuizWindow:
     game state itself.
     """
 
-    PANEL_RECT = pg.Rect(int(WIDTH / 2 - 320), int(HEIGHT / 2 - 220), 640, 440)
+    PANEL_RECT = pg.Rect(int(WIDTH / 2 - 320), int(HEIGHT / 2 - 260), 640, 520)
     FLASH_MS = 900
+    # Tall enough for 2 wrapped lines of OPTION_FONT_SIZE text (see
+    # option_rects/draw) -- long answer options were overflowing past the
+    # button edge at the old fixed single-line height.
+    OPTION_ROW_HEIGHT = 58
+    OPTION_ROW_GAP = 8
+    OPTION_FONT_SIZE = 15
 
     def __init__(self, question, station_key):
         self.question = question
@@ -61,10 +67,11 @@ class QuizWindow:
 
     def option_rects(self):
         rects = []
-        top = self.PANEL_RECT.top + 190
+        top = self.PANEL_RECT.top + 180
+        step = self.OPTION_ROW_HEIGHT + self.OPTION_ROW_GAP
         for i in range(len(self.question["options"])):
-            rects.append(pg.Rect(self.PANEL_RECT.left + 40, top + i * 56,
-                                  self.PANEL_RECT.width - 80, 44))
+            rects.append(pg.Rect(self.PANEL_RECT.left + 40, top + i * step,
+                                  self.PANEL_RECT.width - 80, self.OPTION_ROW_HEIGHT))
         return rects
 
     def handle_click(self, pos):
@@ -98,7 +105,7 @@ class QuizWindow:
             line_spacing=6,
         )
 
-        option_font = vn_font(17)
+        option_font = vn_font(self.OPTION_FONT_SIZE)
         for i, (rect, option_text) in enumerate(zip(self.option_rects(), self.question["options"])):
             if self.selected is None:
                 colour = (50, 50, 65)
@@ -110,8 +117,17 @@ class QuizWindow:
                 colour = (50, 50, 65)
             pg.draw.rect(screen, colour, rect, border_radius=6)
             pg.draw.rect(screen, WHITE, rect, width=1, border_radius=6)
-            text_surf = option_font.render(option_text, True, WHITE)
-            screen.blit(text_surf, text_surf.get_rect(midleft=(rect.left + 14, rect.centery)))
+            # Wrap long options onto up to 2 lines instead of rendering as
+            # one line that can overflow past the button edge -- stacked
+            # lines are centered as a block within the row's height.
+            lines = board.wrap_text_lines(option_text, option_font, rect.width - 28)[:2]
+            line_height = option_font.get_height()
+            block_height = len(lines) * line_height + (len(lines) - 1) * 2
+            y = rect.centery - block_height / 2
+            for line in lines:
+                line_surf = option_font.render(line, True, WHITE)
+                screen.blit(line_surf, (rect.left + 14, y))
+                y += line_height + 2
 
         if self.selected is not None:
             result_font = vn_font(18)

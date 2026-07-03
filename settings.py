@@ -133,6 +133,11 @@ SYSTEM_DIALOGS = {
     "no_eject": "Không ai bị đình chỉ. Phiếu biểu quyết chưa đủ căn cứ.",
     "quiz_correct": "Chính xác!",
     "quiz_wrong": "Chưa đúng. Hãy thử một trạm khác sau ít phút.",
+    # Crew-only wrong-answer message (deduction mode) -- only a correct
+    # answer grants the tracking arrow, so this clarifies why nothing
+    # happened, unlike the imposter's copy of "quiz_wrong" (they still earn
+    # a withdraw credit either way, so the generic message stays accurate).
+    "quiz_wrong_crew": "Chưa đúng -- không nhận được mũi tên chỉ hướng lần này.",
     # Public/anonymous -- everyone sees this, nobody learns who did it.
     "withdraw_alert": "CẢNH BÁO: Quỹ vừa bị rút!",
     "eject_time_penalty": "Đình chỉ nhầm cán bộ liêm chính: mất 60 giây điều tra.",
@@ -158,8 +163,44 @@ CASE_BRIEF = (
 # board, and the imposter's fund-withdrawal win condition instead of kills.
 CASE_BRIEF_DEDUCTION = (
     "Vụ việc: 5 cán bộ, 1 người trong số đó tham nhũng. Trả lời câu hỏi tại các trạm (la bàn góc phải chỉ đường).\n"
-    "Cán bộ liêm chính: mỗi câu trả lời xong sẽ hiện mũi tên chỉ hướng kẻ tham nhũng trong ít giây. Bỏ phiếu đình chỉ đúng người để thắng.\n"
+    "Cán bộ liêm chính: mỗi câu trả lời ĐÚNG sẽ hiện mũi tên chỉ hướng kẻ tham nhũng trong ít giây, trả lời sai thì không. Bỏ phiếu đình chỉ đúng người để thắng.\n"
     "Cán bộ tham nhũng: cũng phải trả lời câu hỏi để không bị nghi ngờ -- nhưng mỗi lần cán bộ liêm chính có mũi tên, bạn cũng sẽ thấy mũi tên chỉ về phía họ để né tránh. Mỗi câu trả lời xong mở khóa 1 lượt rút quỹ tại Phòng Tài chính; thắng bằng cách rút đủ 3 lần hoặc trụ vững đến hết giờ."
+)
+
+# In-game controls/how-to-play reference, toggled with F1 (see
+# game.py draw_help_overlay). Two separate lists since Freeplay's classic
+# kill/sabotage and deduction mode's quiz/tracking-arrow/withdraw rules
+# share almost no controls in common. Each entry is (key_label, description).
+HELP_LINES_FREEPLAY = [
+    ("WASD / Mũi tên", "Di chuyển"),
+    ("Space", "Làm nhiệm vụ tại trạm, hoặc ẩn hình khi đứng trên cống"),
+    ("Alt (khi đang ẩn trong cống)", "Giữ để hiện mũi tên chọn cống, bấm 1/2/3 để dịch chuyển"),
+    ("Enter", "Giết cán bộ liêm chính gần đó (tham nhũng) / báo cáo xác"),
+    ("Ctrl", "Phá hoại đèn (tham nhũng)"),
+    ("Shift", "Phá hoại lò phản ứng (tham nhũng)"),
+    ("Tab", "Xem minimap"),
+    ("P / Esc", "Tạm dừng"),
+    ("F1", "Đóng/mở bảng hướng dẫn này"),
+]
+
+HELP_LINES_DEDUCTION = [
+    ("WASD / Mũi tên", "Di chuyển"),
+    ("Space (tại trạm nhiệm vụ)", "Trả lời câu hỏi -- cả cán bộ liêm chính lẫn tham nhũng"),
+    ("Space (đứng trên cống)", "Ẩn hình vào cống (chỉ cán bộ tham nhũng)"),
+    ("Alt (khi đang ẩn trong cống)", "Giữ để hiện mũi tên chọn cống, bấm 1/2/3 để dịch chuyển"),
+    ("Enter (trong Phòng Tài chính)", "Giữ để rút quỹ (chỉ tham nhũng, cần đủ lượt từ nhiệm vụ)"),
+    ("Space (nút khẩn cấp) / Click xác", "Gọi họp bỏ phiếu"),
+    ("Tab", "Xem minimap -- chấm xanh: trạm sẵn dùng, chấm xám: đang hồi"),
+    ("La bàn góc phải trên", "Chỉ hướng trạm nhiệm vụ gần nhất chưa dùng"),
+    ("Mũi tên đỏ quanh bạn", "Trả lời ĐÚNG câu hỏi sẽ chỉ hướng kẻ tham nhũng trong ít giây"),
+    ("Mũi tên xanh quanh bạn", "Có người đang theo dấu bạn (chỉ cán bộ tham nhũng thấy)"),
+    ("P / Esc", "Tạm dừng"),
+    ("F1", "Đóng/mở bảng hướng dẫn này"),
+]
+
+HELP_WIN_CONDITIONS_DEDUCTION = (
+    "Cán bộ liêm chính thắng: bỏ phiếu đình chỉ đúng cán bộ tham nhũng.\n"
+    "Cán bộ tham nhũng thắng: rút quỹ thành công 3 lần, hoặc trụ vững đến hết giờ."
 )
 
 WIN_TEXTS = {
