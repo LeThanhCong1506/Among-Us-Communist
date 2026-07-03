@@ -77,10 +77,13 @@ imposter_ids = []
 # countdown's target headcount (NOT a join cap -- joining is always allowed
 # up to the hard MAX_PLAYERS ceiling). Defaults to LOBBY_MIN_PLAYERS so a
 # host who never opens the setup panel keeps the original auto-start-at-2
-# behaviour; raise it for a bigger classroom demo.
+# behaviour; raise it for a bigger classroom demo. room_imposter_count
+# replaces the old fixed "2 if count>=7 else 1" formula -- the host picks
+# it directly (default 1), clamped again against the final headcount when
+# the match actually starts so there's always at least one crewmate left.
 host_id = None
 room_max_players = LOBBY_MIN_PLAYERS
-room_bot_count = 0
+room_imposter_count = 1
 
 
 def frame(data):
@@ -167,12 +170,12 @@ def build_snapshot():
 
 def build_lobby_state(count, lobby_deadline, game_started, now):
   """['lobby state', count, min_players, seconds_left_or_None, game_started,
-  imposter_ids, host_id, room_max_players, room_bot_count]"""
+  imposter_ids, host_id, room_max_players, room_imposter_count]"""
   seconds_left = None
   if lobby_deadline is not None and not game_started:
     seconds_left = max(0, int(round(lobby_deadline - now)))
   msg = ['lobby state', count, LOBBY_MIN_PLAYERS, seconds_left, game_started, imposter_ids,
-         host_id, room_max_players, room_bot_count]
+         host_id, room_max_players, room_imposter_count]
   return frame_message(msg)
 
 
@@ -189,7 +192,7 @@ def drop_client(sock):
 
 
 def main():
-  global imposter_ids, host_id, room_max_players, room_bot_count
+  global imposter_ids, host_id, room_max_players, room_imposter_count
   server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
   server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
   server.bind(('', PORT))
@@ -281,7 +284,7 @@ def main():
             pid = conn_id.get(sock)
             if pid is not None and pid == host_id and not game_started:
               room_max_players = max(LOBBY_MIN_PLAYERS, min(MAX_PLAYERS, int(arr[1])))
-              room_bot_count = max(0, min(9, int(arr[2])))
+              room_imposter_count = max(1, min(3, int(arr[2])))
         except Exception:
           pass
 
@@ -300,7 +303,7 @@ def main():
         imposter_ids = []
         host_id = None
         room_max_players = LOBBY_MIN_PLAYERS
-        room_bot_count = 0
+        room_imposter_count = 1
       elif not game_started:
         # room_max_players doubles as the match's target size: the host sets
         # how many are expected (default MAX_PLAYERS), and the countdown
@@ -311,7 +314,9 @@ def main():
           lobby_deadline = None  # someone left before the countdown finished -- cancel it
         elif lobby_deadline is not None and now >= lobby_deadline:
           ids = list(minionmap.keys())
-          imposter_count = 2 if count >= 7 else 1
+          # Host-configured count (default 1), clamped so at least one
+          # crewmate always remains regardless of what was configured.
+          imposter_count = max(1, min(room_imposter_count, count - 1))
           imposter_ids = random.sample(ids, min(imposter_count, len(ids)))
           for pid, minion in minionmap.items():
             minion.imposter = pid in imposter_ids

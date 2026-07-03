@@ -218,7 +218,7 @@ class Board:
     # number the countdown waits for), separate from room_max_players below
     # which is what the settings panel shows the host editing.
     def draw_lobby(self, player_count, target_players, seconds_left, player_image, player_pos, flame_frame,
-                    other_players=(), is_host=False, room_max_players=9, room_bot_count=0, settings_dirty=False):
+                    other_players=(), is_host=False, room_max_players=9, room_imposter_count=1, settings_dirty=False):
         self.surface.fill((10, 12, 20))
 
         if seconds_left is not None:
@@ -258,7 +258,7 @@ class Board:
         player_rect = player_scaled.get_rect(center=(player_pos.x, player_pos.y))
         self.surface.blit(player_scaled, player_rect)
 
-        self.draw_lobby_room_settings(is_host, room_max_players, room_bot_count, settings_dirty)
+        self.draw_lobby_room_settings(is_host, room_max_players, room_imposter_count, settings_dirty)
 
         pg.display.update()
 
@@ -271,13 +271,13 @@ class Board:
         return {
             'max_minus': pg.Rect(bx, 134, bw, bw),
             'max_plus': pg.Rect(bx + 156, 134, bw, bw),
-            'bot_minus': pg.Rect(bx, 188, bw, bw),
-            'bot_plus': pg.Rect(bx + 156, 188, bw, bw),
-            'apply': pg.Rect(bx, 230, 190, 36),
+            'imposter_minus': pg.Rect(bx, 188, bw, bw),
+            'imposter_plus': pg.Rect(bx + 156, 188, bw, bw),
+            'apply': pg.Rect(bx, 246, 190, 36),
         }
 
-    def draw_lobby_room_settings(self, is_host, room_max_players, room_bot_count, settings_dirty=False):
-        panel_h = 280 if is_host else 150
+    def draw_lobby_room_settings(self, is_host, room_max_players, room_imposter_count, settings_dirty=False):
+        panel_h = 300 if is_host else 170
         panel = pg.Surface((240, panel_h), pg.SRCALPHA)
         panel.fill((0, 0, 0, 140))
         self.surface.blit(panel, (20, 76))
@@ -288,7 +288,7 @@ class Board:
         rects = self.get_lobby_room_setting_rects()
         rows = (
             ("Số người tối đa", rects['max_minus'], rects['max_plus'], room_max_players),
-            ("Số quái", rects['bot_minus'], rects['bot_plus'], room_bot_count),
+            ("Số quái (imposter)", rects['imposter_minus'], rects['imposter_plus'], room_imposter_count),
         )
         label_font = vn_font(15)
         value_font = vn_font(18)
@@ -304,6 +304,15 @@ class Board:
                     pg.draw.rect(self.surface, MENU_FONT_COLOR, rect, width=2, border_radius=6)
                     sign_surf = value_font.render(sign, True, MENU_FONT_COLOR)
                     self.surface.blit(sign_surf, sign_surf.get_rect(center=rect.center))
+
+        # The server always keeps at least one crewmate, so N imposters needs
+        # at least N+1 total players -- surface that here so a lower player
+        # count silently reducing the imposter count doesn't look like a bug.
+        min_needed = room_imposter_count + 1
+        hint_rect = rects['imposter_plus']
+        hint_text = f"(cần ≥{min_needed} người mới đủ {room_imposter_count} quái)"
+        hint_surf = vn_font(13).render(hint_text, True, (200, 200, 140))
+        self.surface.blit(hint_surf, (rects['imposter_minus'].x, hint_rect.bottom + 4))
 
         if is_host:
             apply_rect = rects['apply']
