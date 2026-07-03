@@ -104,8 +104,6 @@ class Game:
         self.dialog_until = 0
         self.case_brief_active = False
         self.case_brief_ack_rect = pg.Rect(0, 0, 0, 0)
-        self.task_hint_popup_text = None
-        self.task_hint_ack_rect = pg.Rect(0, 0, 0, 0)
         self.vote_row_rects = []
         self._meeting_tally_resolved = False
         self._dialog_last_night = self.night
@@ -1102,112 +1100,6 @@ class Game:
         self.screen.blit(panel, rect)
         self.board.draw_wrapped_text(self.screen, self.dialog_text, font, WHITE,
                                      rect.inflate(-42, -28), line_spacing=5)
-
-    def get_known_players(self):
-        players = {}
-        if hasattr(self, "Players"):
-            for player in self.Players.values():
-                players[player.player_id] = player
-        if hasattr(self, "player"):
-            players[self.player.player_id] = self.player
-        return list(players.values())
-
-    def get_alive_imposters_for_hint(self):
-        if not hasattr(self, "player") or self.player.imposter:
-            return []
-        return [player for player in self.get_known_players()
-                if player.imposter and player.alive_status]
-
-    @staticmethod
-    def get_colour_family_hint(colour):
-        warm = {"Red", "Orange", "Yellow", "Pink"}
-        cool = {"Blue", "Green", "Purple"}
-        if colour in warm:
-            return "một màu thuộc nhóm nóng: đỏ, cam, vàng hoặc hồng"
-        if colour in cool:
-            return "một màu thuộc nhóm lạnh: xanh dương, xanh lá hoặc tím"
-        return "một màu trung tính hoặc tối: đen, nâu hoặc trắng"
-
-    def get_map_sector_hint(self, player):
-        map_width = getattr(self.map, "width", 5792)
-        map_height = getattr(self.map, "height", 3168)
-        if player.pos.x < map_width / 3:
-            horizontal = "mạn trái"
-        elif player.pos.x > map_width * 2 / 3:
-            horizontal = "mạn phải"
-        else:
-            horizontal = "vùng trung tâm"
-        if player.pos.y < map_height / 3:
-            vertical = "phía trên"
-        elif player.pos.y > map_height * 2 / 3:
-            vertical = "phía dưới"
-        else:
-            vertical = "dải giữa"
-        return f"{vertical}, {horizontal} bản đồ"
-
-    def build_investigation_hint(self):
-        imposters = self.get_alive_imposters_for_hint()
-        if not imposters:
-            return None
-        suspect = random.choice(imposters)
-        colour_hint = self.get_colour_family_hint(suspect.player_colour)
-        sector_hint = self.get_map_sector_hint(suspect)
-        distance = self.player.pos.distance_to(suspect.pos)
-        if distance < 900:
-            distance_hint = "dấu vết đang ở không quá xa vị trí của bạn"
-        elif distance > 1800:
-            distance_hint = "dấu vết nghiêng về một người đang đứng khá xa bạn"
-        else:
-            distance_hint = "dấu vết nằm trong khoảng cách trung gian, chưa đủ để kết luận"
-        id_hint = "chẵn" if suspect.player_id % 2 == 0 else "lẻ"
-        hints = [
-            f"Hồ sơ vừa mở ra nghiêng về {colour_hint}.",
-            f"Dữ liệu giám sát khoanh một bóng người quanh {sector_hint}.",
-            f"{distance_hint}; hãy đối chiếu với hướng di chuyển vừa thấy.",
-            f"Mã hồ sơ nghi vấn có chữ số cuối thuộc nhóm {id_hint}, chỉ nên xem như một manh mối phụ.",
-        ]
-        hint = random.choice(hints)
-        if getattr(self, "_last_task_hint", None) == hint and len(hints) > 1:
-            hint = random.choice([candidate for candidate in hints if candidate != hint])
-        self._last_task_hint = hint
-        return hint
-
-    def show_task_completion_dialog(self, task_key):
-        text = TASK_DIALOGS[task_key][1]
-        hint = self.build_investigation_hint()
-        if not hint and hasattr(self, "player") and not self.player.imposter:
-            hint = "Chưa đủ dữ liệu để khoanh vùng rõ hơn; hãy hoàn thành thêm nhiệm vụ và quan sát hành vi quanh bạn."
-        if hint:
-            text = f"{text}\nGợi ý điều tra: {hint}"
-        self.dialog_text = None
-        self.task_hint_popup_text = text
-        self.task_hint_ack_rect = pg.Rect(0, 0, 0, 0)
-
-    def display_task_hint_popup(self):
-        if not self.task_hint_popup_text:
-            return
-        panel = pg.Surface((880, 320), pg.SRCALPHA)
-        panel.fill((0, 0, 0, 230))
-        rect = panel.get_rect(center=(WIDTH / 2, HEIGHT / 2))
-        self.screen.blit(panel, rect)
-        pg.draw.rect(self.screen, WHITE, rect, 2, border_radius=8)
-
-        title_font = vn_font(32)
-        body_font = vn_font(22)
-        title = title_font.render("GỢI Ý ĐIỀU TRA", True, YELLOW)
-        self.screen.blit(title, title.get_rect(center=(rect.centerx, rect.top + 38)))
-        self.board.draw_wrapped_text(self.screen, self.task_hint_popup_text, body_font, WHITE,
-                                     pg.Rect(rect.left + 48, rect.top + 78, rect.width - 96, 180),
-                                     line_spacing=6)
-
-        self.task_hint_ack_rect = pg.Rect(0, 0, 52, 52)
-        self.task_hint_ack_rect.center = (rect.centerx, rect.bottom - 38)
-        pg.draw.circle(self.screen, GREEN, self.task_hint_ack_rect.center, 26)
-        pg.draw.circle(self.screen, WHITE, self.task_hint_ack_rect.center, 26, 2)
-        start = (self.task_hint_ack_rect.left + 13, self.task_hint_ack_rect.centery + 2)
-        mid = (self.task_hint_ack_rect.left + 23, self.task_hint_ack_rect.bottom - 15)
-        end = (self.task_hint_ack_rect.right - 11, self.task_hint_ack_rect.top + 14)
-        pg.draw.lines(self.screen, WHITE, False, (start, mid, end), 5)
 
     def start_case_brief(self):
         self.case_brief_active = True
@@ -3081,7 +2973,7 @@ class Game:
                             self.clear_asteroid_task_play_count -= 1
                             if self.increment_in_missions == 1:
                                 self.missions_done += 1
-                                self.show_task_completion_dialog("asteroids")
+                                self.show_dialog(TASK_DIALOGS["asteroids"][1])
                             self.increment_in_missions -= 1
                         break
 
@@ -3297,7 +3189,6 @@ class Game:
 
         self.display_case_brief()
         self.display_dialog()
-        self.display_task_hint_popup()
 
         pg.display.flip()
 
@@ -3400,16 +3291,6 @@ class Game:
         for event in pg.event.get():
             if event.type == pg.QUIT:
                 self.quit()
-
-            if self.task_hint_popup_text:
-                if event.type == pg.MOUSEBUTTONDOWN and event.button == LEFT_MOUSE_BUTTON:
-                    if self.task_hint_ack_rect.collidepoint(pg.mouse.get_pos()):
-                        self.task_hint_popup_text = None
-                        self.task_hint_ack_rect = pg.Rect(0, 0, 0, 0)
-                        self.effect_sounds['selected'].play()
-                    continue
-                if event.type == pg.KEYDOWN:
-                    continue
 
             if event.type == pg.MOUSEBUTTONDOWN and event.button == LEFT_MOUSE_BUTTON and self.case_brief_active:
                 if self.case_brief_ack_rect.collidepoint(pg.mouse.get_pos()):
@@ -3595,7 +3476,7 @@ class Game:
                     self.stabilize_target_btn1_status = False
                     self.target_center_sel_count -= 1
                     self.missions_done += 1
-                    self.show_task_completion_dialog("stabilize")
+                    self.show_dialog(TASK_DIALOGS["stabilize"][1])
                     print(self.missions_done)
             if event.type == pg.MOUSEBUTTONDOWN and event.button == LEFT_MOUSE_BUTTON and not self.paused and self.stabilize_steering_window_status:
                 pos = pg.mouse.get_pos()
@@ -3623,7 +3504,7 @@ class Game:
                     self.garbage_liver_Up_sel_count -= 1
                     self.empty_garbage_task_play_count -= 1
                     self.missions_done += 1
-                    self.show_task_completion_dialog("garbage")
+                    self.show_dialog(TASK_DIALOGS["garbage"][1])
                     print(self.missions_done)
             if event.type == pg.MOUSEBUTTONDOWN and event.button == LEFT_MOUSE_BUTTON and not self.paused and self.empty_garbage_window_status:
                 pos = pg.mouse.get_pos()
@@ -3651,7 +3532,7 @@ class Game:
                     self.reboot_wifi_liver_sel_count -= 1
                     self.reboot_wifi_task_play_count -= 1
                     self.missions_done += 1
-                    self.show_task_completion_dialog("wifi")
+                    self.show_dialog(TASK_DIALOGS["wifi"][1])
                     print(self.missions_done)
             if event.type == pg.MOUSEBUTTONDOWN and event.button == LEFT_MOUSE_BUTTON and not self.paused and self.reboot_wifi_window_status:
                 pos = pg.mouse.get_pos()
@@ -3707,7 +3588,7 @@ class Game:
                     self.effect_sounds['fix_electric_wires_BG'].fadeout(500)
                     self.effect_sounds['fixed_electric_wires_BG'].play(-1)
                     self.missions_done += 1
-                    self.show_task_completion_dialog("wires")
+                    self.show_dialog(TASK_DIALOGS["wires"][1])
                     self.electricity_wire_task_play_count -= 1
                     self.electricity_wires_fixed_count += 1
                     print(self.electricity_wires_fixed_count)
@@ -3745,7 +3626,7 @@ class Game:
                     self.divert_power_to_reactor_task_play_count -= 1
                     self.divert_power_to_reactor_liversUP_sel_count -= 1
                     self.missions_done += 1
-                    self.show_task_completion_dialog("power")
+                    self.show_dialog(TASK_DIALOGS["power"][1])
                 elif self.divert_power_to_reactor_close_btn.click(pos):
                     self.effect_sounds['go_back'].play()
                     self.effect_sounds['fix_electric_wires_BG'].fadeout(500)
@@ -3772,7 +3653,7 @@ class Game:
                     self.align_engine_liver_pos_btn2_sel_count -= 1
                     self.align_engine_output_task_play_count -=1
                     self.missions_done += 1
-                    self.show_task_completion_dialog("engine")
+                    self.show_dialog(TASK_DIALOGS["engine"][1])
                 # if player has not click on button 1 and he then clicks button 2 then play error sound
                 if self.align_engine_liver_pos_btn2.click(pos) and self.align_engine_liver_pos_btn1_sel_count == 1:
                     self.effect_sounds['imposter_kill_cooldown_sound'].play()
@@ -3804,7 +3685,7 @@ class Game:
                         self.fuel_engine_fill_btn_sel_count -=1
                         self.effect_sounds['task_completed'].play()
                         self.missions_done += 1
-                        self.show_task_completion_dialog("fuel")
+                        self.show_dialog(TASK_DIALOGS["fuel"][1])
                         self.is_gas_can_picked = False
                         self.fuel_engine_task_play_count -=1
 
