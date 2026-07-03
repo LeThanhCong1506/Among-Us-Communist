@@ -178,8 +178,10 @@ class Player(pg.sprite.Sprite):
 
             # No movement key held this frame -- return to the idle pose
             # instead of staying frozen on whatever walk-cycle frame was last
-            # shown.
-            if self.vel.x == 0 and self.vel.y == 0:
+            # shown. Skip this while hidden in a vent (invisible_play_count
+            # == 1), otherwise this overwrites the vent's invisible image
+            # back to a visible one on the very next frame after entering.
+            if self.vel.x == 0 and self.vel.y == 0 and self.game.invisible_play_count == 0:
                 self.image = self.player_imgs_down[0]
                 self.sync_img = "self.Players[p[0]].player_imgs_down"
                 self.sync_img_index = "[0]"
