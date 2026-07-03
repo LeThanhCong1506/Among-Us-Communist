@@ -274,13 +274,14 @@ class Board:
         return {
             'max_minus': pg.Rect(bx, 134, bw, bw),
             'max_plus': pg.Rect(bx + 156, 134, bw, bw),
-            'imposter_minus': pg.Rect(bx, 188, bw, bw),
-            'imposter_plus': pg.Rect(bx + 156, 188, bw, bw),
-            'apply': pg.Rect(bx, 246, 190, 36),
+            'apply': pg.Rect(bx, 192, 190, 36),
         }
 
     def draw_lobby_room_settings(self, is_host, room_max_players, room_imposter_count, settings_dirty=False):
-        panel_h = 300 if is_host else 170
+        # room_imposter_count is always 1 -- "Truy Tim Ke Tham Nhung" is a
+        # fixed 5-crew/1-imposter deduction game, so only room size (which
+        # controls when the countdown fires) is still host-configurable.
+        panel_h = 250 if is_host else 150
         panel = pg.Surface((240, panel_h), pg.SRCALPHA)
         panel.fill((0, 0, 0, 140))
         self.surface.blit(panel, (20, 76))
@@ -289,33 +290,23 @@ class Board:
         self.draw_text(self.surface, title, 140, 92, vn_font(16))
 
         rects = self.get_lobby_room_setting_rects()
-        rows = (
-            ("Số người tối đa", rects['max_minus'], rects['max_plus'], room_max_players),
-            ("Số quái (imposter)", rects['imposter_minus'], rects['imposter_plus'], room_imposter_count),
-        )
         label_font = vn_font(15)
         value_font = vn_font(18)
-        for label_text, minus_rect, plus_rect, value in rows:
-            label = label_font.render(label_text, True, MENU_FONT_COLOR)
-            self.surface.blit(label, (minus_rect.x, minus_rect.y - 20))
-            value_surf = value_font.render(str(value), True, MENU_FONT_COLOR)
-            value_centre = ((minus_rect.right + plus_rect.left) // 2, minus_rect.centery)
-            self.surface.blit(value_surf, value_surf.get_rect(center=value_centre))
-            if is_host:
-                for rect, sign in ((minus_rect, "-"), (plus_rect, "+")):
-                    pg.draw.rect(self.surface, (60, 60, 70), rect, border_radius=6)
-                    pg.draw.rect(self.surface, MENU_FONT_COLOR, rect, width=2, border_radius=6)
-                    sign_surf = value_font.render(sign, True, MENU_FONT_COLOR)
-                    self.surface.blit(sign_surf, sign_surf.get_rect(center=rect.center))
+        minus_rect, plus_rect = rects['max_minus'], rects['max_plus']
+        label = label_font.render("Số người tối đa", True, MENU_FONT_COLOR)
+        self.surface.blit(label, (minus_rect.x, minus_rect.y - 20))
+        value_surf = value_font.render(str(room_max_players), True, MENU_FONT_COLOR)
+        value_centre = ((minus_rect.right + plus_rect.left) // 2, minus_rect.centery)
+        self.surface.blit(value_surf, value_surf.get_rect(center=value_centre))
+        if is_host:
+            for rect, sign in ((minus_rect, "-"), (plus_rect, "+")):
+                pg.draw.rect(self.surface, (60, 60, 70), rect, border_radius=6)
+                pg.draw.rect(self.surface, MENU_FONT_COLOR, rect, width=2, border_radius=6)
+                sign_surf = value_font.render(sign, True, MENU_FONT_COLOR)
+                self.surface.blit(sign_surf, sign_surf.get_rect(center=rect.center))
 
-        # The server always keeps at least one crewmate, so N imposters needs
-        # at least N+1 total players -- surface that here so a lower player
-        # count silently reducing the imposter count doesn't look like a bug.
-        min_needed = room_imposter_count + 1
-        hint_rect = rects['imposter_plus']
-        hint_text = f"(cần ≥{min_needed} người mới đủ {room_imposter_count} quái)"
-        hint_surf = vn_font(13).render(hint_text, True, (200, 200, 140))
-        self.surface.blit(hint_surf, (rects['imposter_minus'].x, hint_rect.bottom + 4))
+        role_hint = vn_font(13).render("5 cán bộ liêm chính, 1 cán bộ tham nhũng", True, (200, 200, 140))
+        self.surface.blit(role_hint, (minus_rect.x, plus_rect.bottom + 8))
 
         if is_host:
             apply_rect = rects['apply']

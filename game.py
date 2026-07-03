@@ -10,6 +10,8 @@ from settings import *
 from sprites import *
 from tilemap import *
 from pygame import mixer
+from quiz import QuizBank, QuizWindow
+import rooms
 from menu import Menu
 from board import Board
 from gamefunctions import GameFunctions
@@ -22,6 +24,21 @@ import select
 import socket
 
 BUFFERSIZE = 8192
+
+# Quiz station map coordinates (Phase 3), reused here for the minimap
+# markers and directional compass (later addition) so players can find
+# stations instead of stumbling onto them by luck. "fuel" is intentionally
+# absent -- that station was removed (see the old Fuel/Gas Can trigger
+# comment further down).
+STATIONS = [
+    ("stabilize", "Định hướng", (5610, 1290)),
+    ("garbage", "Hồ sơ", (3940, 321)),
+    ("wifi", "Công khai", (3700, 1554)),
+    ("wires", "Giám sát", (3166, 1846)),
+    ("power", "Kiểm soát quyền lực", (1031, 1216)),
+    ("engine", "Tố cáo", (1117, 837)),
+    ("asteroids", "Ngăn tin giả", (4513, 450)),
+]
 
 
 class Game:
@@ -54,6 +71,15 @@ class Game:
         self.game_left = False
         self.screen.get_height()
         self.invisible_play_count = 0
+        # Vent teleport picker (up to 3 nearest other vents, numbered
+        # 1/2/3): populated while imposter holds Alt hidden in a vent,
+        # cleared the instant Alt is released -- see nearby_vent_options().
+        self.vent_picker_options = []
+        # Vent hide/reentry limits: set when entering a vent (ticks of
+        # entry), cleared on exit (manual or auto-timeout); reentry cooldown
+        # is a ticks deadline before another vent can be entered at all.
+        self.vent_hide_started = None
+        self.vent_reentry_cooldown_until = 0
         self.night = False
         self.night_sync = 0
         self.emergency = False
@@ -150,6 +176,7 @@ class Game:
         self.emerg_meeting_button_status = False
         self.emerg_meeting_report_status = False
         self._dialog_last_report = bool(self.emerg_meeting_report_status)
+        self._dialog_last_idle_self = False
         self.skip_meeting_button_status = False
         self.imposter_among_us_status = True
         self.kill_victim_anim = False
@@ -665,6 +692,50 @@ class Game:
     # create sprites/ objects/ walls/ camera = all sprites
     def new(self):
         # initialize all variables and do all the setup for a new game
+        # Multiplayer is the "Truy Tim Ke Tham Nhung" deduction mode: no
+        # kill, no sabotage -- imposter wins via fund withdrawal or the
+        # match clock, crew wins via correct vote. Freeplay keeps the
+        # original Among Us mechanics for solo testing of both roles.
+        self.deduction = (self.gamemode == "Multiplayer")
+        # Quiz stations (Phase 3): replaces the old per-task minigames as
+        # what players do at task stations. Both crew and imposter can
+        # answer -- the imposter blends in this way instead of being locked
+        # out of every station. station_cooldowns is keyed by station name
+        # -> pygame ticks of the last time it was answered there.
+        self.quiz_bank = QuizBank()
+        self.quiz_window = None
+        self.station_cooldowns = {}
+        self.correct_answers = 0
+        # match_elapsed/interval/total default here (not just inside
+        # runmultiplayer) so nothing crashes if draw() runs before the
+        # first 'deduction state' message arrives.
+        self.match_elapsed = None
+        self.match_interval = None
+        self.match_total = None
+        # Phase 5: server-arbitrated eject result (seq only increases, see
+        # resolve_meeting_votes), the anonymous fund-withdrawal alert (same
+        # one-shot-by-seq idiom), and the idle-player warning list.
+        self.eject_result_seq_seen = 0
+        self.withdraw_alert_seen = 0
+        self.idle_ids = []
+        # Visible to every player, not just the imposter -- everyone should
+        # feel the countdown toward the imposter's win condition.
+        self.withdraw_count = 0
+        # Imposter-only: +1 per finished question, spent 1-for-1 on each
+        # withdrawal (see server.py's 'quiz result'/'withdraw done').
+        self.withdraw_credits = 0
+        # Withdraw-channel state (Phase 5, imposter/Multiplayer only).
+        self.withdraw_channel_start = None
+        self.withdraw_channel_pos = None
+        self.withdraw_cooldown_until = 0
+        # Tracking arrows (replaces the old evidence-board mechanic): pids
+        # of crewmates who currently have a live arrow to the imposter,
+        # from the server's 'deduction state'. A crewmate gets one after
+        # finishing any station question; the imposter uses this exact
+        # same list to know who to point an arrow back at.
+        self.tracking_crew = []
+        self._tracking_active_last = False   # own state, for the "gained tracking" dialog
+        self._imposter_warned_last = False   # imposter's own state, for the "spotted" dialog
         # task_btn is only ever instantiated inside draw() and only when the
         # local player is a crewmate (imposters never get one) -- the click
         # handlers in events() run unconditionally, so without this default
@@ -1034,17 +1105,24 @@ class Game:
     def display_case_brief(self):
         if not self.case_brief_active:
             return
-        panel = pg.Surface((820, 292), pg.SRCALPHA)
+        # Multiplayer's deduction-mode rules (quiz stations, tracking
+        # arrows, fund withdrawal) are different enough from Freeplay's
+        # classic kill/sabotage that they need their own brief text and a
+        # taller panel to fit it.
+        brief_text = CASE_BRIEF_DEDUCTION if self.deduction else CASE_BRIEF
+        panel_height = 340 if self.deduction else 292
+        panel = pg.Surface((820, panel_height), pg.SRCALPHA)
         panel.fill((0, 0, 0, 225))
         rect = panel.get_rect(center=(WIDTH / 2, HEIGHT / 2))
         self.screen.blit(panel, rect)
         title_font = vn_font(34)
-        body_font = vn_font(22)
+        body_font = vn_font(20 if self.deduction else 22)
         role_font = vn_font(25)
         title = title_font.render("HỒ SƠ VỤ VIỆC", True, YELLOW)
         self.screen.blit(title, title.get_rect(center=(rect.centerx, rect.top + 38)))
-        self.board.draw_wrapped_text(self.screen, CASE_BRIEF, body_font, WHITE,
-                                     pg.Rect(rect.left + 42, rect.top + 76, rect.width - 84, 130), line_spacing=5)
+        self.board.draw_wrapped_text(self.screen, brief_text, body_font, WHITE,
+                                     pg.Rect(rect.left + 42, rect.top + 76, rect.width - 84,
+                                             panel_height - 156), line_spacing=5)
         role = ROLE_IMPOSTER if self.player.imposter else ROLE_CREW
         role_text = role_font.render("Vai trò của bạn: " + role, True, RED if self.player.imposter else GREEN)
         self.screen.blit(role_text, role_text.get_rect(center=(rect.centerx - 34, rect.bottom - 42)))
@@ -1066,6 +1144,25 @@ class Game:
         report_current = bool(self.emerg_meeting_report_status)
         if report_current and not self._dialog_last_report:
             self.show_dialog(SYSTEM_DIALOGS["report"])
+        if self.deduction:
+            # Imposter is exempt from the idle-darkness penalty entirely
+            # (see player_in_dark in draw()) -- they don't need to answer
+            # questions to "stay lit", so skip this dialog pair for them too.
+            if not self.player.imposter:
+                idle_now = self.player.player_id in self.idle_ids
+                if idle_now != self._dialog_last_idle_self:
+                    self.show_dialog(SYSTEM_DIALOGS["idle_dark" if idle_now else "idle_bright"])
+                self._dialog_last_idle_self = idle_now
+            if self.player.imposter:
+                warned_now = len(self.tracking_crew) > 0
+                if warned_now and not self._imposter_warned_last:
+                    self.show_dialog(SYSTEM_DIALOGS["imposter_spotted"])
+                self._imposter_warned_last = warned_now
+            else:
+                tracking_now = self.player.player_id in self.tracking_crew
+                if tracking_now and not self._tracking_active_last:
+                    self.show_dialog(SYSTEM_DIALOGS["crew_tracking_gained"])
+                self._tracking_active_last = tracking_now
         self._dialog_last_night = self.night
         self._dialog_last_reactor = self.night_reactor
         self._dialog_last_report = report_current
@@ -1133,6 +1230,14 @@ class Game:
         if self._meeting_tally_resolved:
             return
         self._meeting_tally_resolved = True
+        if self.deduction:
+            # Server has the final say in deduction mode (see the
+            # 'eject_result' handling in runmultiplayer's recv loop) --
+            # every client independently timing its own 30s meeting
+            # countdown could otherwise tally a slightly different set of
+            # votes and eject two different people. Freeplay (below) still
+            # resolves locally since there's no server to arbitrate.
+            return
         vote_counts = {}
         skip_votes = 0
         for voter_id, voter in self.get_vote_candidates():
@@ -1179,6 +1284,151 @@ class Game:
     def send_frame(sock, payload):
         data = pickle.dumps(payload)
         sock.sendall(len(data).to_bytes(4, 'big') + data)
+
+    def end_match(self, win_key, imposter_won):
+        """Stop all audio and show the appropriate game-over screen.
+
+        Shared by every multiplayer win condition (Phase 1's crew_eject,
+        Phase 2's match-clock/disconnect endings, Phase 5's fund-withdrawal
+        ending) so each one doesn't repeat the same sound-teardown block.
+        """
+        pg.mixer.music.stop()
+        pg.mixer.Channel(0).stop()
+        for m in self.foot_sounds['footsteps']:
+            m.stop()
+        for m in self.effect_sounds.values():
+            m.stop()
+        for m in self.electric_shock_sounds['electric_shock']:
+            m.stop()
+        for m in self.comms_radio_sounds['comms_radio']:
+            m.stop()
+        for m in self.ambient_sounds.values():
+            m.stop()
+        if imposter_won:
+            self.effect_sounds["victory_imposter"].play()
+            self.menu.game_over_imposter(self.score_list, *WIN_TEXTS[win_key])
+        else:
+            self.effect_sounds["victory_crew"].play()
+            self.menu.game_over(self.score_list, *WIN_TEXTS[win_key])
+
+    def try_open_quiz(self, station_key):
+        """Open a quiz window at a task station -- both crew and imposter
+        can call this. No-op if a quiz is already open, this station is
+        still on its post-answer cooldown (self.station_cooldowns), or the
+        player is currently standing on a vent tile: at least one station
+        (asteroids, DETECT_RADIUS=250) overlaps a vent's radius closely
+        enough that pressing Space to vent also opened a quiz underneath
+        it, freezing the imposter mid-teleport via the quiz's isdoingTask."""
+        if self.quiz_window is not None:
+            return
+        if any(item.type == 'vent' for item in pg.sprite.spritecollide(self.player, self.items, False)):
+            return
+        last_answered = self.station_cooldowns.get(station_key)
+        now_ticks = pygame.time.get_ticks()
+        if last_answered is not None and now_ticks - last_answered < STATION_COOLDOWN_MS:
+            return
+        question = self.quiz_bank.next_question()
+        if question is None:
+            return
+        self.quiz_window = QuizWindow(question, station_key)
+        self.isdoingTask = True
+        self.effect_sounds['selected'].play()
+
+    def resolve_quiz(self):
+        """Called every frame from update(). Once the player has picked an
+        option and QuizWindow's flash delay has elapsed, apply the result
+        and close the window -- separated from try_open_quiz so the
+        correct/incorrect flash has time to actually be seen."""
+        if self.quiz_window is None or not self.quiz_window.ready_to_close():
+            return
+        is_correct = self.quiz_window.is_correct
+        question_id = self.quiz_window.question["id"]
+        self.station_cooldowns[self.quiz_window.station_key] = pygame.time.get_ticks()
+        self.isdoingTask = False
+        if is_correct:
+            self.missions_done += 1
+            self.correct_answers += 1
+            self.effect_sounds['task_completed'].play()
+            self.show_dialog(SYSTEM_DIALOGS["quiz_correct"])
+        else:
+            self.show_dialog(SYSTEM_DIALOGS["quiz_wrong"])
+        if self.gamemode == "Multiplayer":
+            try:
+                self.send_frame(self._mp_socket,
+                                 ['quiz result', self.player.player_id, question_id, is_correct])
+            except Exception:
+                pass
+        self.quiz_window = None
+
+    def deduction_overlay_active(self):
+        """True while any full-screen overlay covers the top-of-screen HUD
+        area -- the Phase 5 additions (match clock, station compass, shared
+        withdraw bar) must hide during ALL of these, not just the
+        emergency-button meeting: there's a SEPARATE "report a body" meeting
+        flag (emerg_meeting_report_status) that draws the exact same
+        alert/chat/vote screens but was missed by an earlier guard that only
+        checked emerg_meeting_button_status, which is how the clock ended up
+        rendered on top of the vote/eject text."""
+        return (self.emerg_meeting_button_status or self.emerg_meeting_report_status
+                or self.eject or self.case_brief_active or self.quiz_window is not None)
+
+    def nearby_vent_options(self, count=3):
+        """Up to `count` vents nearest to the player, EXCLUDING the one
+        they're currently standing on (which is always the single closest
+        entry in self.vent, since you can only call this while colliding
+        with it -- see the Alt-hold check above)."""
+        vents_by_distance = sorted(self.vent, key=lambda v: self.player.pos.distance_to(vec(v)))
+        return vents_by_distance[1:count + 1]
+
+    def draw_arrow_around_player(self, target_pos, colour=YELLOW, label=None):
+        """Small arrow orbiting the local player's own on-screen sprite,
+        pointing toward target_pos (a world-space Vector2) -- used for the
+        tracking-arrow mechanic (crew -> imposter, and imposter -> whichever
+        crewmate currently has a tracking arrow active). Distinct from
+        draw_station_compass, which is a fixed HUD icon, not anchored to
+        the player's own sprite."""
+        direction = vec(target_pos) - self.player.pos
+        if direction.length_squared() < 1:
+            return
+        angle = math.degrees(math.atan2(-direction.y, direction.x))
+        base = pg.Surface((24, 18), pg.SRCALPHA)
+        pg.draw.polygon(base, colour, [(24, 9), (2, 0), (7, 9), (2, 18)])
+        rotated = pg.transform.rotate(base, angle)
+        origin = vec(self.camera.apply(self.player).center)
+        offset = direction.normalize() * 46
+        pos = origin + offset
+        rect = rotated.get_rect(center=(pos.x, pos.y))
+        self.screen.blit(rotated, rect)
+        if label:
+            label_surf = vn_font(13).render(label, True, colour)
+            self.screen.blit(label_surf, label_surf.get_rect(midtop=(rect.centerx, rect.bottom + 2)))
+
+    def draw_station_compass(self):
+        """HUD arrow pointing at the nearest station that isn't on
+        cooldown, plus its distance -- so players can navigate straight to
+        a task instead of wandering until something happens to glow."""
+        now_ticks = pygame.time.get_ticks()
+        available = [pos for key, _title, pos in STATIONS
+                     if now_ticks - self.station_cooldowns.get(key, -STATION_COOLDOWN_MS - 1) >= STATION_COOLDOWN_MS]
+        if not available:
+            return
+        player_pos = self.player.pos
+        nearest_pos = min(available, key=lambda pos: player_pos.distance_to(vec(pos)))
+        direction = vec(nearest_pos) - player_pos
+        distance = direction.length()
+        if distance < 1:
+            return
+        angle = math.degrees(math.atan2(-direction.y, direction.x))
+        base = pg.Surface((28, 22), pg.SRCALPHA)
+        pg.draw.polygon(base, YELLOW, [(28, 11), (4, 0), (10, 11), (4, 22)])
+        rotated = pg.transform.rotate(base, angle)
+        # y=110, not 70 -- self.map_btn (the minimap-toggle icon, always
+        # visible) occupies (WIDTH-80, 20) sized 56x56, i.e. y=20..76 at
+        # this same x, and the arrow was rendering right on top of it.
+        center = (WIDTH - 70, 110)
+        self.screen.blit(rotated, rotated.get_rect(center=center))
+        dist_surf = vn_font(13).render(f"{int(distance)}m", True, YELLOW)
+        self.screen.blit(dist_surf, dist_surf.get_rect(midtop=(center[0], center[1] + 20)))
 
     # THIS METHOD RUNS THE GAME AND ITS MAIN FUNCTIONS IN LOOP
 
@@ -1323,6 +1573,10 @@ class Game:
             self.menu.game_left(self.score_list, "Không thể kết nối tới máy chủ. Kiểm tra địa chỉ IP và mạng.")
             return
         s.settimeout(None)  # back to blocking with no timeout for the rest of the session
+        # Stashed so other methods (resolve_quiz) can send an out-of-band
+        # message immediately instead of waiting for the next throttled
+        # position-update tick.
+        self._mp_socket = s
 
         # temp var to store dynamically generated id
         player_id = 0
@@ -1383,9 +1637,9 @@ class Game:
         # actually sends them, so the room/game/text all update together
         # instead of firing a network message on every single click.
         lobby_host_id = None
-        lobby_max_players = 9
+        lobby_max_players = 5
         lobby_imposter_count = 1
-        lobby_staged_max = 9
+        lobby_staged_max = 5
         lobby_staged_imposters = 1
         lobby_settings_dirty = False
         lobby_player_pos = vec((lobby_xmin + lobby_xmax) / 2, (lobby_ymin + lobby_ymax) / 2)
@@ -1434,18 +1688,12 @@ class Game:
                         lobby_staged_max = min(9, lobby_staged_max + 1)
                         lobby_settings_dirty = True
                         self.effect_sounds['menu_sel'].play()
-                    elif rects['imposter_minus'].collidepoint(event.pos):
-                        lobby_staged_imposters = max(1, lobby_staged_imposters - 1)
-                        lobby_settings_dirty = True
-                        self.effect_sounds['menu_sel'].play()
-                    elif rects['imposter_plus'].collidepoint(event.pos):
-                        lobby_staged_imposters = min(3, lobby_staged_imposters + 1)
-                        lobby_settings_dirty = True
-                        self.effect_sounds['menu_sel'].play()
                     elif rects['apply'].collidepoint(event.pos):
                         self.effect_sounds['selected'].play()
                         try:
-                            self.send_frame(s, ['room config', lobby_staged_max, lobby_staged_imposters])
+                            # Imposter count is fixed at 1 (server ignores/
+                            # overrides it too); only room size is still sent.
+                            self.send_frame(s, ['room config', lobby_staged_max, 1])
                         except Exception:
                             pass
                         lobby_settings_dirty = False
@@ -1607,6 +1855,14 @@ class Game:
         self.imposter_among_us_status = False
         self.start_case_brief()
 
+        # Deduction-mode match clock, filled in from the server's
+        # 'deduction state' broadcast (server.py build_deduction_state) --
+        # None until the first message arrives, so the HUD clock/interval
+        # label simply don't draw yet instead of showing 00:00.
+        self.match_elapsed = None
+        self.match_interval = None
+        self.match_total = None
+
         self.playing = True
         while self.playing:
             self.dt = self.clock.tick(FPS) / 1000
@@ -1637,6 +1893,54 @@ class Game:
                     self.player.player_id = player_id
                     if len(gameEvent) > 2:
                         self.apply_assigned_colour(gameEvent[2])
+                # Deduction-mode match clock + one-shot match-end signal
+                # (server.py build_deduction_state); dict-keyed so unknown
+                # keys from a newer server just get ignored here.
+                if gameEvent[0] == 'deduction state':
+                    state = gameEvent[1]
+                    self.match_elapsed = state.get("elapsed", self.match_elapsed)
+                    self.match_interval = state.get("interval", self.match_interval)
+                    self.match_total = state.get("total", self.match_total)
+                    # Tracking arrows (replaces the old evidence-board clue
+                    # system): pids of crewmates currently pointed at the
+                    # imposter -- rendered in draw() for both sides.
+                    self.tracking_crew = state.get("tracking_crew", [])
+                    withdraw_alert_seq = state.get("withdraw_alert_seq")
+                    if withdraw_alert_seq is not None and withdraw_alert_seq > self.withdraw_alert_seen:
+                        self.withdraw_alert_seen = withdraw_alert_seq
+                        self.show_dialog(SYSTEM_DIALOGS["withdraw_alert"])
+                    self.withdraw_count = state.get("withdraw_count", self.withdraw_count)
+                    withdraw_credits = state.get("withdraw_credits")
+                    if withdraw_credits is not None:
+                        self.withdraw_credits = withdraw_credits.get(self.player.player_id, self.withdraw_credits)
+                    self.idle_ids = state.get("idle_ids", [])
+                    # Server has the final say on who (if anyone) got ejected
+                    # -- see resolve_meeting_votes()'s deduction-mode no-op
+                    # and server.py's meeting-arbitration block. seq only
+                    # increases, so this only fires once per resolved meeting
+                    # even though the dict is re-broadcast every tick.
+                    eject_result = state.get("eject_result")
+                    if eject_result is not None and eject_result["seq"] > self.eject_result_seq_seen:
+                        self.eject_result_seq_seen = eject_result["seq"]
+                        target_pid = eject_result["target"]
+                        if target_pid is None:
+                            self.show_dialog(SYSTEM_DIALOGS["no_eject"])
+                        else:
+                            target_player = self.get_player_by_id(target_pid)
+                            if target_player is not None:
+                                target_player.pos_corpse.x = target_player.pos.x
+                                target_player.pos_corpse.y = target_player.pos.y
+                                self.apply_eject_state(target_player.eject_img, target_player.player_colour)
+                        if eject_result.get("time_penalty"):
+                            self.show_dialog(SYSTEM_DIALOGS["eject_time_penalty"])
+                    match_end = state.get("match_end")
+                    if match_end is not None:
+                        win_key = match_end["win_key"]
+                        if win_key == "not_enough_players":
+                            self.menu.game_left(self.score_list, NOT_ENOUGH_PLAYERS_MESSAGE)
+                        else:
+                            self.end_match(win_key, match_end["imposter_won"])
+                        return
                 # if event is such that it contains below string
                 if gameEvent[0] == 'player locations':
                     # remove the string
@@ -1905,87 +2209,15 @@ class Game:
                 except Exception:
                     pass
 
-            # check for game end condition
-            if len(self.Players) > 1:
-                # For crew mate
-                for p in self.Players.values():
-                    if p.tasks_completed < 8 and p.imposter == False:
-                        break
-                else:
-                    pg.mixer.music.stop()  # turn off background music
-                    pg.mixer.Channel(0).stop()
-                    for m in self.foot_sounds['footsteps']:
-                        m.stop()
-                    for m in self.effect_sounds.values():
-                        m.stop()
-                    for m in self.electric_shock_sounds['electric_shock']:
-                        m.stop()
-                    for m in self.comms_radio_sounds['comms_radio']:
-                        m.stop()
-                    for m in self.ambient_sounds.values():
-                        m.stop()
-                    self.effect_sounds["victory_crew"].play()
-                    self.menu.game_over(self.score_list, *WIN_TEXTS["crew_tasks"])
-                    return
-                # Crew wins by vote only after every imposter has been removed.
-                imposters = [p for p in self.Players.values() if p.imposter]
-                if imposters and all(not p.alive_status for p in imposters) and self.emergency == False and self.eject == False:
-                    pg.mixer.music.stop()  # turn off background music
-                    pg.mixer.Channel(0).stop()
-                    for m in self.foot_sounds['footsteps']:
-                        m.stop()
-                    for m in self.effect_sounds.values():
-                        m.stop()
-                    for m in self.electric_shock_sounds['electric_shock']:
-                        m.stop()
-                    for m in self.comms_radio_sounds['comms_radio']:
-                        m.stop()
-                    for m in self.ambient_sounds.values():
-                        m.stop()
-                    self.effect_sounds["victory_crew"].play()
-                    self.menu.game_over(self.score_list, *WIN_TEXTS["crew_eject"])
-                    return
-
-                # When imposter kills all players
-                for p in self.Players.values():
-                    if p.alive_status == True and p.imposter == False:
-                        break
-                else:
-                    pass
-                    if self.emergency == False and self.kill_victim_anim == False and self.eject == False:
-                        pg.mixer.music.stop()  # turn off background music
-                        pg.mixer.Channel(0).stop()
-                        for m in self.foot_sounds['footsteps']:
-                            m.stop()
-                        for m in self.effect_sounds.values():
-                            m.stop()
-                        for m in self.electric_shock_sounds['electric_shock']:
-                            m.stop()
-                        for m in self.comms_radio_sounds['comms_radio']:
-                            m.stop()
-                        for m in self.ambient_sounds.values():
-                            m.stop()
-                        self.effect_sounds["victory_imposter"].play()
-                        self.menu.game_over_imposter(self.score_list, *WIN_TEXTS["imposter_kill"])
-                        return
-                # For imposter - Critical Sabotage
-                if self.sabotagecritical == True and (
-                        self.sabotagecriticaltimer - self.sabotagecriticaltimer_start) > 20000:
-                    pg.mixer.music.stop()  # turn off background music
-                    pg.mixer.Channel(0).stop()
-                    for m in self.foot_sounds['footsteps']:
-                        m.stop()
-                    for m in self.effect_sounds.values():
-                        m.stop()
-                    for m in self.electric_shock_sounds['electric_shock']:
-                        m.stop()
-                    for m in self.comms_radio_sounds['comms_radio']:
-                        m.stop()
-                    for m in self.ambient_sounds.values():
-                        m.stop()
-                    self.effect_sounds["victory_imposter"].play()
-                    self.menu.game_over_imposter(self.score_list, *WIN_TEXTS["imposter_crisis"])
-                    return
+            # Deduction mode ("Truy Tim Ke Tham Nhung"): no all-tasks win and
+            # no kill/sabotage wins -- questions only earn tracking arrows
+            # (see self.tracking_crew), and the imposter wins via fund
+            # withdrawal or the match clock. Crew's win-by-eject is decided
+            # server-side now (Phase 5 hardening: see 'eject_result'/
+            # 'match_end' handling in the recv loop above) instead of each
+            # client checking "are all known imposters dead" locally, which
+            # could race against a slightly different alive_status snapshot
+            # on another client and trigger end_match twice or inconsistently.
 
 
 
@@ -2017,13 +2249,14 @@ class Game:
                 keys = pg.key.get_pressed()
                 if keys[pg.K_SPACE]:
                     if self.invisible_play_count == 0 and self.player.imposter == True and self.player.alive_status == True and (
-                            self.ventcooldown - self.ventcooldown_start) > 500 and self.emergency == False:
+                            self.ventcooldown - self.ventcooldown_start) > 500 and self.emergency == False and pygame.time.get_ticks() >= self.vent_reentry_cooldown_until:
                         self.player.image = self.invsible_player_image
                         self.player.sync_img = "self.invsible_player_image"
                         self.player.sync_img_index = ""
                         self.effect_sounds['vent'].play()
                         self.invisible_play_count = 1
                         self.ventcooldown_start = pygame.time.get_ticks()
+                        self.vent_hide_started = pygame.time.get_ticks()
                         # self.invisibility_sound_playing = True
                     elif self.invisible_play_count == 1 and (self.ventcooldown - self.ventcooldown_start) > 500:
                         self.player.image = self.player.player_imgs_down[0]
@@ -2032,14 +2265,42 @@ class Game:
                         self.effect_sounds['vent'].play()
                         self.invisible_play_count = 0
                         self.ventcooldown_start = self.ventcooldown
+                        self.vent_hide_started = None
+                        self.vent_reentry_cooldown_until = pygame.time.get_ticks() + VENT_REENTRY_COOLDOWN_MS
 
                 if keys[pg.K_LALT] or keys[pg.K_RALT]:
                     if (
                             self.ventcooldown - self.ventcooldown_start) > 750 and self.invisible_play_count == 1 and self.player.imposter == True:
-                        self.player.pos = vec(random.choice(self.vent))
-                        self.effect_sounds['invisible'].play()
-                        self.ventcooldown_start = self.ventcooldown
+                        # Holding Alt no longer teleports straight to a
+                        # random vent -- it opens a picker (up to 3 nearest
+                        # OTHER vents, numbered 1/2/3) drawn in draw() and
+                        # confirmed with a number key in events(), so the
+                        # imposter controls where they come out instead of
+                        # landing wherever chance puts them.
+                        self.vent_picker_options = self.nearby_vent_options()
 
+        # keys inside the vent hit-loop above is only assigned when actually
+        # colliding with a vent item, so re-fetch key state fresh here
+        # instead of relying on that possibly-undefined loop-local name.
+        alt_held = pg.key.get_pressed()[pg.K_LALT] or pg.key.get_pressed()[pg.K_RALT]
+        if not alt_held:
+            self.vent_picker_options = []
+
+        # Auto-eject after VENT_HIDE_DURATION_MS -- checked unconditionally
+        # (not just while colliding with a vent) since movement is frozen
+        # the whole time hidden (invisible_play_count blocks WASD in
+        # sprites.py), so the imposter can't have wandered off the tile.
+        if (self.invisible_play_count == 1 and self.vent_hide_started is not None
+                and pygame.time.get_ticks() - self.vent_hide_started >= VENT_HIDE_DURATION_MS):
+            self.player.image = self.player.player_imgs_down[0]
+            self.player.sync_img = "self.player.player_imgs_down"
+            self.player.sync_img_index = "[0]"
+            self.effect_sounds['vent'].play()
+            self.invisible_play_count = 0
+            self.ventcooldown_start = self.ventcooldown
+            self.vent_hide_started = None
+            self.vent_reentry_cooldown_until = pygame.time.get_ticks() + VENT_REENTRY_COOLDOWN_MS
+            self.vent_picker_options = []
 
         hitz = pg.sprite.spritecollide(self.player, self.bots, False)
         for hit in hitz:
@@ -2230,7 +2491,7 @@ class Game:
         for hit in hitp:
             keys = pg.key.get_pressed()
             if keys[pg.K_RETURN]:
-                if (self.killcooldown - self.killcooldown_start) > 15000 and hit.alive_status == True and hit.imposter == False and self.player.imposter == True and self.invisible_play_count == 0 and self.emergency == False:
+                if not self.deduction and (self.killcooldown - self.killcooldown_start) > 15000 and hit.alive_status == True and hit.imposter == False and self.player.imposter == True and self.invisible_play_count == 0 and self.emergency == False:
                     self.player.victim_id = hit.player_id
                     self.effect_sounds['imposter_kill_sound'].play()
                     self.server_player_killed += 1
@@ -2249,15 +2510,59 @@ class Game:
                         self.killcooldown - self.killcooldown_start) > 2500 and hit.alive_status == False and self.sabotagecritical == False and self.player.alive_status == True and self.emergency == False:
                     self.player.victim_id_report = hit.player_id
 
-
+        # Rút quỹ (Phase 5) -- imposter/Multiplayer only; Freeplay's
+        # K_RETURN still does the classic kill above. Holding K_RETURN
+        # inside Phòng Tài chính channels for WITHDRAW_CHANNEL_MS; letting
+        # go or moving cancels and any partial progress is lost. The server
+        # re-validates room/role/cooldown itself before it counts.
+        if self.deduction and self.player.imposter and self.player.alive_status:
+            keys = pg.key.get_pressed()
+            now_ticks = pygame.time.get_ticks()
+            in_finance_room = (rooms.room_at(self.player.pos.x, self.player.pos.y) == rooms.FINANCE_ROOM)
+            on_cooldown = now_ticks < self.withdraw_cooldown_until
+            # Client-side pre-check so an uncredited attempt doesn't even
+            # start an 8s channel the server would reject anyway -- the
+            # server still re-validates this itself (see 'withdraw done').
+            has_credit = self.withdraw_count < self.withdraw_credits
+            channel_ok = (keys[pg.K_RETURN] and in_finance_room and not on_cooldown and has_credit
+                          and not self.isdoingTask and not self.emergency and not self.eject)
+            if channel_ok:
+                moved = (self.withdraw_channel_start is not None
+                         and self.player.pos.distance_to(self.withdraw_channel_pos) > 2)
+                if self.withdraw_channel_start is None or moved:
+                    self.withdraw_channel_start = now_ticks
+                    self.withdraw_channel_pos = vec(self.player.pos)
+                elif now_ticks - self.withdraw_channel_start >= WITHDRAW_CHANNEL_MS:
+                    try:
+                        self.send_frame(self._mp_socket, ['withdraw done', self.player.player_id])
+                    except Exception:
+                        pass
+                    self.withdraw_channel_start = None
+                    self.withdraw_cooldown_until = now_ticks + WITHDRAW_COOLDOWN_MS
+            else:
+                self.withdraw_channel_start = None
 
         # Update mini map
         self.update_mini_map()
         self.check_state_dialogs()
+        self.resolve_quiz()
 
     # Change player position
     def update_mini_map(self):
         self.mini_map.blit(self.mini_map_img, (0, 0))
+        # Station markers so players can actually find task stations instead
+        # of stumbling onto them -- same coordinate scaling as the player
+        # dot below (map pixels -> /15 -> x3). Green = usable now, grey =
+        # still on its post-answer cooldown (self.station_cooldowns).
+        if self.deduction:
+            now_ticks = pygame.time.get_ticks()
+            for key, _title, pos in STATIONS:
+                mx, my = int(3 * (pos[0] / 15)), int(3 * (pos[1] / 15))
+                last_answered = self.station_cooldowns.get(key)
+                on_cooldown = last_answered is not None and now_ticks - last_answered < STATION_COOLDOWN_MS
+                colour = (140, 140, 140) if on_cooldown else GREEN
+                pg.draw.circle(self.mini_map, colour, (mx, my), 5)
+                pg.draw.circle(self.mini_map, WHITE, (mx, my), 5, 1)
         # mini map player position indicator
         self.player_map_square.fill(self.player.player_colour)
         """self.mini_map.blit(player_map_square, (2*self.player.rect.x / 13, 2*self.player.rect.y / 13))"""
@@ -2314,12 +2619,84 @@ class Game:
                 for y in range(0, HEIGHT, TILESIZE):
                     pg.draw.line(self.screen, LIGHTGREY, (0, y), (WIDTH, y))
 
+        """ Idle warning icons (Phase 5) -- above any player's sprite whose
+        id is in self.idle_ids (from the server's 'deduction state'
+        broadcast, itself derived from last_progress_ms). """
+        if self.deduction and self.idle_ids:
+            idle_font = vn_font(20)
+            idle_icon = idle_font.render("!", True, (255, 40, 40))
+            for candidate in list(getattr(self, "Players", {}).values()) + [self.player]:
+                if candidate.player_id in self.idle_ids and candidate.alive_status:
+                    icon_rect = self.camera.apply(candidate)
+                    self.screen.blit(idle_icon, idle_icon.get_rect(midbottom=(icon_rect.centerx, icon_rect.top - 4)))
+
+        """ Tracking arrows (replaces the old evidence-board mechanic):
+        answering any station question gives a crewmate a live arrow to the
+        imposter, and symmetrically warns the imposter with an arrow back
+        to that specific crewmate so they can go hide. self.tracking_crew
+        (from 'deduction state') is the single shared list both sides read. """
+        if self.deduction and self.player.alive_status and self.tracking_crew:
+            if not self.player.imposter:
+                if self.player.player_id in self.tracking_crew:
+                    imposter_player = next((p for p in self.Players.values() if p.imposter), None)
+                    if imposter_player is not None:
+                        self.draw_arrow_around_player(imposter_player.pos, RED)
+            else:
+                for pid in self.tracking_crew:
+                    tracker = self.Players.get(pid)
+                    if tracker is not None and tracker.alive_status:
+                        label = COLOR_DISPLAY_NAMES.get(tracker.player_colour, tracker.player_colour)
+                        self.draw_arrow_around_player(tracker.pos, GREEN, label)
+
+        """ Vent teleport picker -- both Freeplay and Multiplayer (this is
+        the base vent mechanic, not a deduction-mode addition). Up to 3
+        numbered arrows to the nearest OTHER vents while Alt is held hidden
+        in one; press 1/2/3 (events()) to teleport to that specific vent
+        instead of a random one. """
+        for i, vent_pos in enumerate(self.vent_picker_options):
+            self.draw_arrow_around_player(vec(vent_pos), YELLOW, str(i + 1))
+
         """ Fog is loaded 3rd """
         # Light Effect - Night Mode
         if self.night:
             self.render_fog()
         if self.night_reactor:
             self.render_fog_reactor()
+        # Personal "lights off" for idle crewmates (Phase 5 follow-up):
+        # reuses the same fog/light-mask effect as the old lights sabotage,
+        # but purely locally -- it only darkens MY OWN screen when MY OWN
+        # id is in self.idle_ids, never broadcast or synced, so nobody else
+        # is affected by (or can even see) another player's idle penalty.
+        # Stacked with an extra flat black layer (self.dim_screen, already
+        # alpha 180) on top since the plain fog alone reads too close to the
+        # normal lit screen to feel like a real penalty. Imposter is exempt
+        # entirely -- they don't need to answer questions to "stay lit", so
+        # this never applies to them regardless of their own idle_ids status.
+        player_in_dark = (self.deduction and not self.player.imposter
+                           and self.player.player_id in self.idle_ids)
+        if player_in_dark:
+            self.render_fog()
+            self.screen.blit(self.dim_screen, (0, 0))
+            self.screen.blit(self.dim_screen, (0, 0))
+
+            # Station beacons + persistent banner: the fog/dim layers above
+            # would otherwise also darken the task stations themselves,
+            # making them just as hard to find as everything else -- so
+            # these are drawn AFTER the darkness, punching through it, and
+            # the reminder banner stays up the whole time instead of just
+            # the initial 4s toast dialog (see check_state_dialogs).
+            beacon_font = vn_font(13)
+            for _key, title, pos in STATIONS:
+                screen_pos = (pos[0] + self.camera.camera.x, pos[1] + self.camera.camera.y)
+                pulse = 6 + int(3 * math.sin(pygame.time.get_ticks() / 150))
+                pg.draw.circle(self.screen, YELLOW, screen_pos, 14 + pulse, 3)
+                label_surf = beacon_font.render(title, True, YELLOW)
+                self.screen.blit(label_surf, label_surf.get_rect(midtop=(screen_pos[0], screen_pos[1] + 20)))
+
+            banner_font = vn_font(20)
+            banner_surf = banner_font.render(
+                "ĐÈN ĐÃ TẮT -- Hãy đến một trạm nhiệm vụ để mở lại đèn!", True, YELLOW)
+            self.screen.blit(banner_surf, banner_surf.get_rect(midtop=(WIDTH / 2, 90)))
 
         # If reactor is turned on by some crew mate in either game mode then
         # hide and reset the reactor_meltdown_timer, which displayed when imposter sabotages
@@ -2486,12 +2863,96 @@ class Game:
 
         """ Progress bar is loaded 5th """
         # if player is impostor then show him imposter progress bar else show normal task progress bar
+        # Deduction mode has no kill mechanic, so the imposter's own kill-
+        # progress bar (bot_killed never moves without kills) is replaced by
+        # the shared withdraw bar below instead of shown here.
         if self.player.imposter:
-            if not self.clear_asteroid_task_window_status:
+            if not self.deduction and not self.clear_asteroid_task_window_status:
                 self.draw_progress_bar_imposter(self.screen, 120, 10, self.bot_killed)
         else:
             if not self.clear_asteroid_task_window_status:
                 self.draw_progress_bar(self.screen, 75, 10, self.missions_done)
+
+        """ Shared fund-withdrawal progress (Phase 5 follow-up) -- visible
+        to every player, crew and imposter alike, so the whole table feels
+        the countdown toward the imposter's win condition. Count-only, no
+        identity, same anonymity as the "withdraw_alert" dialog. """
+        if self.deduction and not self.deduction_overlay_active():
+            wd_rect = pg.Rect(10, 50, 240, 22)
+            pg.draw.rect(self.screen, (40, 40, 40), wd_rect)
+            filled_w = wd_rect.width * min(1.0, self.withdraw_count / WITHDRAW_WIN_COUNT)
+            pg.draw.rect(self.screen, (200, 60, 60), (wd_rect.x, wd_rect.y, filled_w, wd_rect.height))
+            pg.draw.rect(self.screen, WHITE, wd_rect, width=2)
+            wd_label = vn_font(13).render(
+                f"Quỹ đã rút: {self.withdraw_count}/{WITHDRAW_WIN_COUNT}", True, WHITE)
+            self.screen.blit(wd_label, wd_label.get_rect(center=wd_rect.center))
+
+        """ Deduction-mode match clock is loaded 5th """
+        # Counts down from match_total; match_elapsed/interval/total come
+        # from the server's 'deduction state' broadcast so every client's
+        # clock stays in lockstep instead of drifting on local frame timing.
+        # Hidden during any overlay (see deduction_overlay_active) -- those
+        # screens redraw the same top-center area (vote list, ejected
+        # player name, role banner) and the clock would otherwise render on
+        # top and obscure that text.
+        # midtop y=48, not 10 -- the "Player Name" HUD below (board.py's
+        # draw_player_name, "<name> - <role>") already occupies the y=10..44
+        # band centered at WIDTH/2, and was rendering underneath the clock.
+        if (self.deduction and self.match_elapsed is not None and self.match_total is not None
+                and not self.deduction_overlay_active()):
+            remaining = max(0, int(self.match_total - self.match_elapsed))
+            minutes, seconds = divmod(remaining, 60)
+            clock_font = vn_font(22)
+            interval_label = (self.match_interval or 0) + 1
+            clock_text = f"{minutes:02d}:{seconds:02d}  (T{interval_label})"
+            clock_surf = clock_font.render(clock_text, True, YELLOW)
+            self.screen.blit(clock_surf, clock_surf.get_rect(midtop=(WIDTH / 2, 48)))
+
+        """ Rút quỹ HUD is loaded 5th (imposter only) """
+        if self.deduction and self.player.imposter:
+            bar_rect = pg.Rect(WIDTH - 260, HEIGHT - 46, 240, 26)
+            if self.withdraw_channel_start is not None:
+                progress = min(1.0, (pygame.time.get_ticks() - self.withdraw_channel_start) / WITHDRAW_CHANNEL_MS)
+                pg.draw.rect(self.screen, (40, 40, 40), bar_rect)
+                pg.draw.rect(self.screen, (200, 60, 60), (bar_rect.x, bar_rect.y, bar_rect.width * progress, bar_rect.height))
+                pg.draw.rect(self.screen, WHITE, bar_rect, width=2)
+                label = vn_font(14).render("Đang rút quỹ...", True, WHITE)
+                self.screen.blit(label, label.get_rect(center=bar_rect.center))
+            elif pygame.time.get_ticks() < self.withdraw_cooldown_until:
+                remaining_s = (self.withdraw_cooldown_until - pygame.time.get_ticks()) // 1000 + 1
+                label = vn_font(14).render(f"Rút quỹ: chờ {remaining_s}s", True, YELLOW)
+                self.screen.blit(label, label.get_rect(center=bar_rect.center))
+            elif rooms.room_at(self.player.pos.x, self.player.pos.y) == rooms.FINANCE_ROOM:
+                if self.withdraw_count < self.withdraw_credits:
+                    label = vn_font(14).render("Giữ Enter để rút quỹ", True, GREEN)
+                else:
+                    label = vn_font(13).render(
+                        f"Cần làm nhiệm vụ trước khi rút ({self.withdraw_credits}/{self.withdraw_count + 1})",
+                        True, YELLOW)
+                self.screen.blit(label, label.get_rect(center=bar_rect.center))
+
+        """ Vent hide/reentry countdown (imposter, both modes -- base vent
+        mechanic, not a deduction-only addition) """
+        if self.player.imposter:
+            vent_bar_rect = pg.Rect(WIDTH - 260, HEIGHT - 80, 240, 26)
+            now_ticks = pygame.time.get_ticks()
+            if self.invisible_play_count == 1 and self.vent_hide_started is not None:
+                remaining = max(0, VENT_HIDE_DURATION_MS - (now_ticks - self.vent_hide_started))
+                progress = remaining / VENT_HIDE_DURATION_MS
+                pg.draw.rect(self.screen, (40, 40, 40), vent_bar_rect)
+                pg.draw.rect(self.screen, (60, 140, 200),
+                             (vent_bar_rect.x, vent_bar_rect.y, vent_bar_rect.width * progress, vent_bar_rect.height))
+                pg.draw.rect(self.screen, WHITE, vent_bar_rect, width=2)
+                label = vn_font(13).render(f"Đang núp cống: {remaining // 1000 + 1}s", True, WHITE)
+                self.screen.blit(label, label.get_rect(center=vent_bar_rect.center))
+            elif now_ticks < self.vent_reentry_cooldown_until:
+                remaining_s = (self.vent_reentry_cooldown_until - now_ticks) // 1000 + 1
+                label = vn_font(13).render(f"Cống hồi phục: {remaining_s}s", True, (200, 120, 60))
+                self.screen.blit(label, label.get_rect(center=vent_bar_rect.center))
+
+        """ Station compass is loaded 5th """
+        if self.deduction and not self.deduction_overlay_active():
+            self.draw_station_compass()
 
         """UI ELEMENTS LOADED"""
         # Task Button is loaded 5th
@@ -2606,16 +3067,11 @@ class Game:
         x = pygame.Vector2(5610, 1290)
         y = pygame.Vector2(self.player.pos.x, self.player.pos.y)
         if x.distance_to(y) <= STABILIZE_NAV_RADIUS:
-            if keys[pg.K_SPACE] and self.stablize_sound_play_count == 1 and self.stabilize_task_play_count == 1 and not self.player.imposter:
-                self.effect_sounds['selected'].play()
-                self.effect_sounds['stabilize_nav_BG'].play(-1)
-                self.stabilize_steering_button_status = True
-                self.stabilize_steering_window_status = True
-                self.stabilize_target_btn1_status = True
-                self.stabilize_close_btn_status = True
-                self.isdoingTask = True
-                self.show_dialog(TASK_DIALOGS["stabilize"][0])
-                self.stablize_sound_play_count -= 1
+            # Quiz station (Phase 3) -- both crew and imposter can answer.
+            # The old stabilize minigame code above is now dead (its status
+            # flags are never set True anymore) but left in place.
+            if keys[pg.K_SPACE]:
+                self.try_open_quiz("stabilize")
         ''' Yes'''
 
         ''' Yes'''
@@ -2638,15 +3094,9 @@ class Game:
         x = pygame.Vector2(3940, 321)
         y = pygame.Vector2(self.player.pos.x, self.player.pos.y)
         if x.distance_to(y) <= EMPTY_GARBAGE_RADIUS:
-            if keys[pg.K_SPACE] and self.empty_garbage_sound_play_count == 1 and self.empty_garbage_task_play_count == 1 and not self.player.imposter:
-                self.effect_sounds['selected'].play()
-                self.effect_sounds['emtpy_garbage_BG'].play(-1)
-                self.empty_garbage_window_status = True
-                self.garbage_liver_Up_status = True
-                self.empty_garbage_close_btn_status = True
-                self.isdoingTask = True
-                self.show_dialog(TASK_DIALOGS["garbage"][0])
-                self.empty_garbage_sound_play_count -= 1
+            # Quiz station (Phase 3) -- old garbage minigame left dormant.
+            if keys[pg.K_SPACE]:
+                self.try_open_quiz("garbage")
         ''' Yes'''
 
         ''' Yes'''
@@ -2668,14 +3118,9 @@ class Game:
         x = pygame.Vector2(3700, 1554)
         y = pygame.Vector2(self.player.pos.x, self.player.pos.y)
         if x.distance_to(y) <= REBOOT_WIFI_RADIUS:
-            if keys[pg.K_SPACE] and self.reboot_wifi_sound_play_count == 1 and self.reboot_wifi_task_play_count == 1 and not self.player.imposter:
-                self.effect_sounds['selected'].play()
-                self.effect_sounds['reboot_wifi_BG'].play(-1)
-                self.reboot_wifi_window_status = True
-                self.reboot_wifi_liver_up_status = True
-                self.isdoingTask = True
-                self.show_dialog(TASK_DIALOGS["wifi"][0])
-                self.reboot_wifi_sound_play_count -= 1
+            # Quiz station (Phase 3) -- old wifi minigame left dormant.
+            if keys[pg.K_SPACE]:
+                self.try_open_quiz("wifi")
         ''' Yes'''
 
         ''' Yes'''
@@ -2703,15 +3148,9 @@ class Game:
         x = pygame.Vector2(3166, 1846)
         y = pygame.Vector2(self.player.pos.x, self.player.pos.y)
         if x.distance_to(y) <= FIX_ELECTRICITY_WIRES_RADIUS:
-            if keys[pg.K_SPACE] and self.electricity_wire_sound_play_count == 1 and self.electricity_wire_task_play_count == 1 and not self.player.imposter:
-                self.effect_sounds['selected'].play()
-                self.effect_sounds['fix_electric_wires_BG'].play(-1)
-                self.electricity_wire_window_status = True
-                self.electricity_wire_close_btn_status = True
-                self.electricity_wire_btns_visible = True
-                self.electricity_wire_sound_play_count -= 1
-                self.isdoingTask = True
-                self.show_dialog(TASK_DIALOGS["wires"][0])
+            # Quiz station (Phase 3) -- old wires minigame left dormant.
+            if keys[pg.K_SPACE]:
+                self.try_open_quiz("wires")
 
         ''' Yes'''
         # Divert Power to Reactor Task
@@ -2731,16 +3170,9 @@ class Game:
         x = pygame.Vector2(1031, 1216)
         y = pygame.Vector2(self.player.pos.x, self.player.pos.y)
         if x.distance_to(y) <= DIVERT_POWER_TOP_REACTOR_RADIUS:
-            if keys[pg.K_SPACE] and self.divert_power_to_reactor_sound_play_count == 1 and self.divert_power_to_reactor_task_play_count == 1 and not self.player.imposter:
-                self.effect_sounds['selected'].play()
-                self.effect_sounds['fix_electric_wires_BG'].play(-1)
-                self.divert_power_to_reactor_window_status = True
-                self.divert_power_to_reactor_livers_btn_status = True
-                self.divert_power_to_reactor_close_btn_status = True
-                #self.electricity_wire_btns_visible = True
-                self.divert_power_to_reactor_sound_play_count -= 1
-                self.isdoingTask = True
-                self.show_dialog(TASK_DIALOGS["power"][0])
+            # Quiz station (Phase 3) -- old power minigame left dormant.
+            if keys[pg.K_SPACE]:
+                self.try_open_quiz("power")
 
         ''' Yes'''
         # Align Engine Output Task
@@ -2771,17 +3203,9 @@ class Game:
         c = pygame.Vector2(1117, 837)
         d = pygame.Vector2(self.player.pos.x, self.player.pos.y)
         if c.distance_to(d) <= ALIGN_ENGINE_OUTPUT:
-            if keys[pg.K_SPACE] and self.align_engine_output_task_play_count ==1 and self.align_engine_output_sound_play_count == 1 and not self.player.imposter:
-                self.effect_sounds['selected'].play()
-                self.align_engine_output_window_status = True
-                self.align_engine_liver_status = True
-                self.align_engine_liver_pos_btn1_status = True
-                self.align_engine_liver_pos_btn2_status = True
-                self.align_engine_output_window2_status = True
-                self.align_engine_output_close_btn_status = True
-                self.align_engine_output_sound_play_count -= 1
-                self.isdoingTask = True
-                self.show_dialog(TASK_DIALOGS["engine"][0])
+            # Quiz station (Phase 3) -- old engine minigame left dormant.
+            if keys[pg.K_SPACE]:
+                self.try_open_quiz("engine")
         ''' Yes'''
 
 
@@ -2816,35 +3240,12 @@ class Game:
             self.screen.blit(self.text, (400, HEIGHT/2 - 30))
             self.fuel_engine_close_btn2.draw_Image(self.screen)
 
-        # Pick Storage Gas Can Task Trigger
-        n = pygame.Vector2(3056, 2443)
-        m = pygame.Vector2(self.player.pos.x, self.player.pos.y)
-        if n.distance_to(m) <= PICK_STORAGE_GAS_CAN_RADIUS:
-            if keys[pg.K_SPACE] and self.fuel_engine_task_play_count == 1 and self.gas_can_picking_count == 1 and self.gas_can_picking_sound_play_count == 1 and self.player.imposter == False:
-                self.effect_sounds['pick_gas_can'].play()
-                self.is_gas_can_picked = True
-                self.gas_can_not_picked_text_visible_status = False
-                self.gas_can_picking_count -= 1
-                self.gas_can_picking_sound_play_count -= 1
-
-        # Fuel Engine Task Trigger
-        c = pygame.Vector2(1226, 2300)
-        d = pygame.Vector2(self.player.pos.x, self.player.pos.y)
-        if c.distance_to(d) <= FUEL_ENGINE:
-            if keys[pg.K_SPACE] and self.fuel_engine_sound_play_count == 1 and self.fuel_engine_task_play_count == 1 and not self.player.imposter:
-                if self.is_gas_can_picked:
-                    self.effect_sounds['selected'].play()
-                    self.fuel_engine_window_status = True
-                    self.fuel_engine_fill_btn_status = True
-                    self.fuel_engine_close_btn_status = True
-                    self.isdoingTask = True
-                    self.show_dialog(TASK_DIALOGS["fuel"][0])
-                    self.fuel_engine_sound_play_count -= 1
-                else:
-                    self.gas_can_not_picked_text_visible_status = True
-                    self.isdoingTask = True
-                    self.show_dialog("Cần tìm bình nhiên liệu dữ liệu gần đó trước khi bổ sung nguồn lực kiểm toán.")
-                    self.fuel_engine_sound_play_count2 -= 1
+        # Fuel/gas-can task removed entirely: its old minigame only ever
+        # asked the player to pick up a gas can sprite that then followed
+        # them around the map for the rest of the match with no way to put
+        # it back down once the quiz replaced the actual fill-up step, so
+        # both triggers (pickup + fuel station) are disabled rather than
+        # just left dormant -- is_gas_can_picked can now never become True.
         ''' Yes'''
 
 
@@ -2922,15 +3323,11 @@ class Game:
         # Clear Asteroid Task Trigger
         c = pygame.Vector2(4513, 450)
         d = pygame.Vector2(self.player.pos.x, self.player.pos.y)
-        if d.distance_to(c) <= DETECT_RADIUS and self.clear_asteroid_sound_play_count == 1 and self.clear_asteroid_task_play_count == 1:
-            if self.player.imposter == False:
-                if keys[pg.K_SPACE]:
-                    self.asteroid_bg.play(-1, -1, 1500)
-                    self.clear_asteroid_task_window_status = True
-                    self.clear_asteroid_task_available = True
-                    self.isdoingTask = True
-                    self.show_dialog(TASK_DIALOGS["asteroids"][0])
-                    self.clear_asteroid_sound_play_count -=1
+        if d.distance_to(c) <= DETECT_RADIUS:
+            # Quiz station (Phase 3) -- old asteroid shooter minigame left
+            # dormant (its own window never opens anymore).
+            if keys[pg.K_SPACE]:
+                self.try_open_quiz("asteroids")
         # TASKS CODE CLOSES HERE ------------------------------------------------------------
 
 
@@ -2988,24 +3385,24 @@ class Game:
         # ---------------------------------------------------------------------------
         
         # This code actually draws the timer of kill cool down on screen
-        if self.kill_timer_icon_dim_status and self.time_left_to_kill !=0 and self.player.imposter and self.player.alive_status and not self.isdoingTask and not self.emerg_meeting_button_status and not self.eject:
+        if not self.deduction and self.kill_timer_icon_dim_status and self.time_left_to_kill !=0 and self.player.imposter and self.player.alive_status and not self.isdoingTask and not self.emerg_meeting_button_status and not self.eject:
             self.display_kill_icon_dim()
-        if self.kill_timer_icon_status and self.time_left_to_kill <= 0 and self.player.imposter and self.player.alive_status and not self.isdoingTask and not self.emerg_meeting_button_status and not self.eject:
+        if not self.deduction and self.kill_timer_icon_status and self.time_left_to_kill <= 0 and self.player.imposter and self.player.alive_status and not self.isdoingTask and not self.emerg_meeting_button_status and not self.eject:
             self.display_kill_icon()
         # Kill Timer Blit
-        if self.kill_timer_event and self.time_left_to_kill !=0 and self.kill_timer_visible_status and not self.emerg_meeting_button_status and self.player.imposter and not self.isdoingTask and not self.eject:
+        if not self.deduction and self.kill_timer_event and self.time_left_to_kill !=0 and self.kill_timer_visible_status and not self.emerg_meeting_button_status and self.player.imposter and not self.isdoingTask and not self.eject:
             self.screen.blit(self.board.draw_kill_timer_text(self.time_left_to_kill, YELLOW, 30), (WIDTH-372, HEIGHT-90))
 
         # --------------------------------------------------------------------------
 
         # This code actually draws the timer of reactor_sabotage_cooldown on screen
-        if self.sabotage_timer_icon_dim_status and self.time_left_to_boom_cooldown !=0 and self.player.imposter and self.player.alive_status and not self.isdoingTask and not self.emerg_meeting_button_status and not self.eject:
+        if not self.deduction and self.sabotage_timer_icon_dim_status and self.time_left_to_boom_cooldown !=0 and self.player.imposter and self.player.alive_status and not self.isdoingTask and not self.emerg_meeting_button_status and not self.eject:
             self.display_sabotage_icon_dim()
         # This code actually draws the timer of reactor sabotage when players turn on the reactor
-        if self.sabotage_timer_icon_status and self.time_left_to_boom_cooldown <= 0 and self.player.imposter and self.player.alive_status and not self.isdoingTask and not self.emerg_meeting_button_status and not self.eject:
+        if not self.deduction and self.sabotage_timer_icon_status and self.time_left_to_boom_cooldown <= 0 and self.player.imposter and self.player.alive_status and not self.isdoingTask and not self.emerg_meeting_button_status and not self.eject:
             self.display_sabotage_icon()
         # Reactor Timer Blit
-        if self.time_left_to_boom_cooldown != 0 and self.reactor_timer_cooldown_visible_status and self.player.imposter and not self.emerg_meeting_button_status and not self.isdoingTask and not self.eject:
+        if not self.deduction and self.time_left_to_boom_cooldown != 0 and self.reactor_timer_cooldown_visible_status and self.player.imposter and not self.emerg_meeting_button_status and not self.isdoingTask and not self.eject:
             self.screen.blit(self.board.draw_reactor_timer_imposter_text(self.time_left_to_boom_cooldown, YELLOW, 30), (WIDTH - 250, HEIGHT - 90))
 
         # Sabotage Reactor Meltdown Timer Client Side Blit in Multiplayer mode - Slight adjustments in Height of timer
@@ -3098,6 +3495,10 @@ class Game:
                 self.timer_start = pygame.time.get_ticks()
             self.display_kill_victim_anim()  # this layer is beneath the screen
 
+        if self.quiz_window is not None:
+            self.screen.blit(self.dim_screen, (0, 0))
+            self.quiz_window.draw(self.screen, self.board)
+
         self.display_case_brief()
         self.display_dialog()
 
@@ -3165,9 +3566,24 @@ class Game:
                 # if key is H and game is not paused
                 if event.key == pg.K_h and not self.paused:
                     self.draw_debug = not self.draw_debug
+                # Vent teleport picker confirm -- 1/2/3 selects the
+                # correspondingly-numbered arrow shown while Alt is held
+                # hidden in a vent (self.vent_picker_options, see update()
+                # and draw_vent_picker()). Still gated by the same 750ms
+                # cooldown as the old random-teleport version.
+                if (not self.paused and self.player.imposter and self.invisible_play_count == 1
+                        and self.vent_picker_options
+                        and (self.ventcooldown - self.ventcooldown_start) > 750
+                        and event.key in (pg.K_1, pg.K_2, pg.K_3)):
+                    idx = {pg.K_1: 0, pg.K_2: 1, pg.K_3: 2}[event.key]
+                    if idx < len(self.vent_picker_options):
+                        self.player.pos = vec(self.vent_picker_options[idx])
+                        self.effect_sounds['invisible'].play()
+                        self.ventcooldown_start = self.ventcooldown
+                        self.vent_picker_options = []
                 # Create a toggle key for night fog switch
                 # if key is ctrl and game is not paused
-                if (event.key == pg.K_LCTRL or event.key == pg.K_RCTRL) and not self.paused and self.emerg_meeting_button_status == 0:
+                if (event.key == pg.K_LCTRL or event.key == pg.K_RCTRL) and not self.paused and self.emerg_meeting_button_status == 0 and self.gamemode == "Freeplay":
 
                     c = pygame.Vector2(2472, 1721)
                     d = pygame.Vector2(self.player.pos.x, self.player.pos.y)
@@ -3197,7 +3613,7 @@ class Game:
                     elif self.player.imposter == True:
                         self.effect_sounds['imposter_kill_cooldown_sound'].play()
 
-                if (event.key == pg.K_LSHIFT or event.key == pg.K_RSHIFT) and not self.paused and self.emerg_meeting_button_status == 0:
+                if (event.key == pg.K_LSHIFT or event.key == pg.K_RSHIFT) and not self.paused and self.emerg_meeting_button_status == 0 and self.gamemode == "Freeplay":
                     c = pygame.Vector2(889, 999)
                     d = pygame.Vector2(self.player.pos.x, self.player.pos.y)
 
@@ -3289,6 +3705,12 @@ class Game:
                         # self.pause_quit_button_status = True
                         self.menu.game_left(self.score_list, 'Bạn đã rời phiên làm việc')
                         self.game_left = True
+
+            # Quiz station click (Phase 3) -- register the option pick here;
+            # resolve_quiz() (called from update()) applies the result once
+            # QuizWindow's correct/incorrect flash has finished.
+            if event.type == pg.MOUSEBUTTONDOWN and event.button == LEFT_MOUSE_BUTTON and not self.paused and self.quiz_window is not None:
+                self.quiz_window.handle_click(pg.mouse.get_pos())
 
             # Task Button -- task_btn only exists once draw() has created it
             # for a crewmate (imposters never get one, see new()); guard

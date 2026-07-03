@@ -43,6 +43,23 @@ TITLE = "Multi Player Game"
 BGCOLOR = Brown
 NO_OF_MISSIONS = 8
 NO_OF_BOTS = 9
+# Quiz stations (Phase 3): how long a station stays unusable after being
+# answered, so a player can't stand in one spot and farm the same station.
+STATION_COOLDOWN_MS = 20000
+# Fund withdrawal (Phase 5): imposter-only, Multiplayer-only channel time in
+# Phòng Tài chính, plus a client-side cooldown estimate (the server enforces
+# its own copy of this and has final say -- see server.py's WITHDRAW_COOLDOWN_SECONDS).
+WITHDRAW_CHANNEL_MS = 8000
+WITHDRAW_COOLDOWN_MS = 90000
+WITHDRAW_WIN_COUNT = 3  # must match server.py's own copy
+
+# Vent hide/reentry limits: imposter can only stay hidden in a vent for
+# VENT_HIDE_DURATION_MS before being auto-ejected, then can't enter any
+# vent again for VENT_REENTRY_COOLDOWN_MS. Purely local/client-enforced
+# (like the old random-teleport version) since there's no other player to
+# cheat against here -- only the imposter's own client cares.
+VENT_HIDE_DURATION_MS = 10000
+VENT_REENTRY_COOLDOWN_MS = 20000
 TILESIZE = 32
 GRIDWIDTH = WIDTH / TILESIZE
 GRIDHEIGHT = HEIGHT / TILESIZE
@@ -114,11 +131,35 @@ SYSTEM_DIALOGS = {
     "reactor_off": "Khủng hoảng niềm tin đã được kiểm soát. Quyền lực cần tiếp tục được giám sát.",
     "report": "Một đầu mối bất thường đã được báo cáo. Hãy biểu quyết dựa trên bằng chứng.",
     "no_eject": "Không ai bị đình chỉ. Phiếu biểu quyết chưa đủ căn cứ.",
+    "quiz_correct": "Chính xác!",
+    "quiz_wrong": "Chưa đúng. Hãy thử một trạm khác sau ít phút.",
+    # Public/anonymous -- everyone sees this, nobody learns who did it.
+    "withdraw_alert": "CẢNH BÁO: Quỹ vừa bị rút!",
+    "eject_time_penalty": "Đình chỉ nhầm cán bộ liêm chính: mất 60 giây điều tra.",
+    # Personal/local -- only the idle player sees these (see idle_ids in
+    # game.py's draw()/check_state_dialogs).
+    "idle_dark": "Bạn đã không làm nhiệm vụ quá lâu. Hãy đến trạm gần nhất để mở lại đèn!",
+    "idle_bright": "Đèn đã sáng trở lại.",
+    # Tracking arrows (replaces the old evidence-board mechanic) -- only the
+    # crewmate who just gained one, and only the imposter being warned, see
+    # these (see game.py's check_state_dialogs).
+    "crew_tracking_gained": "Bạn đã xác định được hướng của kẻ tham nhũng! Hãy đuổi theo mũi tên.",
+    "imposter_spotted": "Có cán bộ liêm chính đang lần theo dấu vết của bạn. Hãy tìm chỗ trốn!",
 }
 
 CASE_BRIEF = (
     "Vụ việc: Một số cán bộ đang lợi dụng chức vụ để che giấu sai phạm, làm nhiễu thông tin và gây suy giảm niềm tin xã hội.\n"
     "Mục tiêu: Cán bộ liêm chính hoàn thành nhiệm vụ minh bạch hóa hệ thống; cán bộ tham nhũng tìm cách bịt đầu mối và phá hoại giám sát."
+)
+
+# Multiplayer ("Truy Tim Ke Tham Nhung" deduction mode) has different rules
+# from Freeplay's classic kill/sabotage, so it gets its own brief: quiz
+# stations instead of minigames, tracking arrows instead of an evidence
+# board, and the imposter's fund-withdrawal win condition instead of kills.
+CASE_BRIEF_DEDUCTION = (
+    "Vụ việc: 5 cán bộ, 1 người trong số đó tham nhũng. Trả lời câu hỏi tại các trạm (la bàn góc phải chỉ đường).\n"
+    "Cán bộ liêm chính: mỗi câu trả lời xong sẽ hiện mũi tên chỉ hướng kẻ tham nhũng trong ít giây. Bỏ phiếu đình chỉ đúng người để thắng.\n"
+    "Cán bộ tham nhũng: cũng phải trả lời câu hỏi để không bị nghi ngờ -- nhưng mỗi lần cán bộ liêm chính có mũi tên, bạn cũng sẽ thấy mũi tên chỉ về phía họ để né tránh. Mỗi câu trả lời xong mở khóa 1 lượt rút quỹ tại Phòng Tài chính; thắng bằng cách rút đủ 3 lần hoặc trụ vững đến hết giờ."
 )
 
 WIN_TEXTS = {
@@ -142,7 +183,29 @@ WIN_TEXTS = {
         "Niềm tin xã hội đã sụp đổ. Cán bộ tham nhũng đã che giấu sai phạm thành công.",
         "Bài học: Khi thông tin bị che mờ, hồ sơ bị thao túng và quyền lực thiếu kiểm soát, tham nhũng có thể tiếp tục tồn tại.",
     ),
+    # Deduction mode ("Truy Tim Ke Tham Nhung") win conditions -- Phase 2/5.
+    "imposter_time": (
+        "Cán bộ tham nhũng chiến thắng",
+        "Hết thời gian điều tra. Cán bộ tham nhũng đã trụ vững đến phút cuối.",
+        "Bài học: Nếu tập thể không kịp thu thập đủ bằng chứng và hành động, sai phạm có thể trôi qua trong im lặng.",
+    ),
+    "imposter_withdraw": (
+        "Cán bộ tham nhũng chiến thắng",
+        "Quỹ đã bị rút trót lọt hai lần trước khi bị phát hiện.",
+        "Bài học: Thiếu giám sát tài chính chặt chẽ tạo cơ hội cho hành vi tham nhũng lặp lại.",
+    ),
+    # The imposter's connection dropped mid-match -- crew wins by default
+    # since there's no one left to withdraw funds or run out the clock.
+    "imposter_left": (
+        "Cán bộ liêm chính chiến thắng",
+        "Cán bộ tham nhũng đã rời khỏi phiên làm việc.",
+        "Bài học: Rời bỏ trách nhiệm giữa chừng cũng là một hình thức trốn tránh giám sát.",
+    ),
 }
+
+# Neutral (non-victory) end-of-match message when too few players remain to
+# continue -- shown via menu.game_left, not the win/lose screens above.
+NOT_ENOUGH_PLAYERS_MESSAGE = "Không đủ người chơi để tiếp tục phiên làm việc."
 
 
 # Menu setting
