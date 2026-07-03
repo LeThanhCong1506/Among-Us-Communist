@@ -289,14 +289,6 @@ class GameFunctions:
         else:
             self.game.map_img.blit(self.reactor_btn_img, (889, 996))
 
-        """Task - Turn On Lower Engine Glow object"""
-        c = pygame.Vector2(1127, 2318)
-        d = pygame.Vector2(self.game.player.pos.x, self.game.player.pos.y)
-        if c.distance_to(d) <= DETECT_RADIUS:
-            self.game.map_img.blit(self.lower_highlight_engine_img, (1127, 2318))
-        else:
-            self.game.map_img.blit(self.lower_engine_img, (1127, 2318))
-
         """Task - Align Engine Output Glow object"""
         c = pygame.Vector2(1117, 837)
         d = pygame.Vector2(self.game.player.pos.x, self.game.player.pos.y)

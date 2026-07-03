@@ -745,6 +745,13 @@ class Game:
         # before the first draw() call each frame -- default it too so a
         # click on the very first frame can't crash before draw() ever ran.
         self.map_btn = None
+        # Set for one frame when the KILL/EMERGENCY HUD icon is clicked, so
+        # the per-frame proximity checks in update() (which normally only
+        # look at pg.key.get_pressed()) treat a click as equivalent to the
+        # keyboard shortcut. Consumed (reset to False) the moment update()
+        # reads it, whether or not the click actually resulted in an action.
+        self.mouse_kill_pressed = False
+        self.mouse_emergency_pressed = False
         self.all_sprites = pg.sprite.LayeredUpdates()
         # self.all_sprites = pg.sprite.Group()
         self.walls = pg.sprite.Group()
@@ -962,22 +969,83 @@ class Game:
         self.screen.blit(self.fuel_engine_window_img, (WIDTH / 3 - 45, 70))
 
     # UI BUTTON IMAGES
+    # Screen rects for the 4 clickable action icons, keyed to match
+    # get_action_icon_rects()'s callers. Positions are the same
+    # WIDTH/HEIGHT-relative offsets the icons have always been blit at.
+    def get_action_icon_rects(self):
+        return {
+            'lights': self.light_bulb_icon.get_rect(topleft=(WIDTH - 160, HEIGHT - 117)),
+            'sabotage': self.sabotage_icon.get_rect(topleft=(WIDTH - 280, HEIGHT - 110)),
+            'kill': self.kill_icon.get_rect(topleft=(WIDTH - 400, HEIGHT - 110)),
+            'emergency': self.emergency_icon.get_rect(topleft=(WIDTH - 540, HEIGHT - 109)),
+        }
+
+    # Bright frame when an action is off cooldown and clickable, dim grey
+    # frame while on cooldown -- so it's visually obvious these HUD icons
+    # are buttons instead of players having to discover the keyboard
+    # shortcuts (Enter/Ctrl/Shift/Space) by trial and error.
+    def _draw_icon_affordance(self, rect, ready):
+        colour = (255, 215, 60) if ready else (110, 110, 110)
+        pg.draw.rect(self.screen, colour, rect.inflate(8, 8), width=3, border_radius=10)
+
+    def _draw_icon_key_label(self, rect, key_text, ready, placement="above"):
+        font = vn_font(13)
+        text_colour = WHITE if ready else LIGHTGREY
+        label_text = font.render(key_text, True, text_colour)
+        label_rect = label_text.get_rect()
+        label_rect.inflate_ip(16, 7)
+        if placement == "below":
+            label_rect.midtop = (rect.centerx, rect.bottom + 5)
+        else:
+            label_rect.midbottom = (rect.centerx, rect.top - 5)
+
+        label_bg = pg.Surface(label_rect.size, pg.SRCALPHA)
+        pg.draw.rect(label_bg, (0, 0, 0, 220), label_bg.get_rect(), border_radius=6)
+        self.screen.blit(label_bg, label_rect)
+        border_colour = (255, 215, 60) if ready else (120, 120, 120)
+        pg.draw.rect(self.screen, border_colour, label_rect, width=1, border_radius=6)
+        self.screen.blit(label_text, label_text.get_rect(center=label_rect.center))
+
     def display_light_bulb_icon(self):
-        self.screen.blit(self.light_bulb_icon, (WIDTH-160, HEIGHT-117))
+        rect = self.get_action_icon_rects()['lights']
+        self._draw_icon_affordance(rect, ready=True)
+        self.screen.blit(self.light_bulb_icon, rect)
+        self._draw_icon_key_label(rect, "CTRL", ready=True)
     def display_light_bulb_icon_dim(self):
-        self.screen.blit(self.light_bulb_icon_dim, (WIDTH - 160, HEIGHT - 117))
+        rect = self.get_action_icon_rects()['lights']
+        self._draw_icon_affordance(rect, ready=False)
+        self.screen.blit(self.light_bulb_icon_dim, rect)
+        self._draw_icon_key_label(rect, "CTRL", ready=False)
     def display_sabotage_icon(self):
-        self.screen.blit(self.sabotage_icon, (WIDTH-280, HEIGHT-110))
+        rect = self.get_action_icon_rects()['sabotage']
+        self._draw_icon_affordance(rect, ready=True)
+        self.screen.blit(self.sabotage_icon, rect)
+        self._draw_icon_key_label(rect, "SHIFT", ready=True)
     def display_sabotage_icon_dim(self):
-        self.screen.blit(self.sabotage_icon_dim, (WIDTH-280, HEIGHT-110))
+        rect = self.get_action_icon_rects()['sabotage']
+        self._draw_icon_affordance(rect, ready=False)
+        self.screen.blit(self.sabotage_icon_dim, rect)
+        self._draw_icon_key_label(rect, "SHIFT", ready=False)
     def display_kill_icon(self):
-        self.screen.blit(self.kill_icon, (WIDTH-400, HEIGHT-110))
+        rect = self.get_action_icon_rects()['kill']
+        self._draw_icon_affordance(rect, ready=True)
+        self.screen.blit(self.kill_icon, rect)
+        self._draw_icon_key_label(rect, "ENTER", ready=True)
     def display_kill_icon_dim(self):
-        self.screen.blit(self.kill_icon_dim, (WIDTH-400, HEIGHT-110))
+        rect = self.get_action_icon_rects()['kill']
+        self._draw_icon_affordance(rect, ready=False)
+        self.screen.blit(self.kill_icon_dim, rect)
+        self._draw_icon_key_label(rect, "ENTER", ready=False)
     def display_emergency_icon(self):
-        self.screen.blit(self.emergency_icon, (WIDTH-540, HEIGHT-109))
+        rect = self.get_action_icon_rects()['emergency']
+        self._draw_icon_affordance(rect, ready=True)
+        self.screen.blit(self.emergency_icon, rect)
+        self._draw_icon_key_label(rect, "SPACE", ready=True)
     def display_emergency_icon_dim(self):
-        self.screen.blit(self.emergency_icon_dim, (WIDTH-540, HEIGHT-109))
+        rect = self.get_action_icon_rects()['emergency']
+        self._draw_icon_affordance(rect, ready=False)
+        self.screen.blit(self.emergency_icon_dim, rect)
+        self._draw_icon_key_label(rect, "SPACE", ready=False)
 
     # CHAT
     def display_chat(self):
@@ -1092,11 +1160,16 @@ class Game:
     def display_dialog(self):
         if not self.dialog_text or pygame.time.get_ticks() > self.dialog_until:
             return
-        panel = pg.Surface((WIDTH - 180, 112), pg.SRCALPHA)
+        font = vn_font(22)
+        panel_width = WIDTH - 180
+        max_text_width = panel_width - 84
+        line_count = len(self.board.wrap_text_lines(self.dialog_text, font, max_text_width))
+        panel_height = min(190, max(64, line_count * (font.get_height() + 5) + 36))
+        panel = pg.Surface((panel_width, panel_height), pg.SRCALPHA)
         panel.fill((0, 0, 0, 210))
-        rect = panel.get_rect(midbottom=(WIDTH / 2, HEIGHT - 24))
+        rect = panel.get_rect(midbottom=(WIDTH / 2, HEIGHT - 10))
         self.screen.blit(panel, rect)
-        self.board.draw_wrapped_text(self.screen, self.dialog_text, vn_font(22), WHITE,
+        self.board.draw_wrapped_text(self.screen, self.dialog_text, font, WHITE,
                                      rect.inflate(-42, -28), line_spacing=5)
 
     def start_case_brief(self):
@@ -1886,13 +1959,9 @@ class Game:
 
             # server shit — framed, buffered, non-blocking receive
             for gameEvent in self._recv_frames(s):
-                # if event is such that it contains below string
-                if gameEvent[0] == 'id update':
-                    # generate player id
-                    player_id = gameEvent[1]
-                    self.player.player_id = player_id
-                    if len(gameEvent) > 2:
-                        self.apply_assigned_colour(gameEvent[2])
+                # 'id update' is only ever sent once, during the lobby handshake
+                # (see the waiting_for_lobby loop above) -- the server never
+                # re-sends it mid-match, so there is no handler for it here.
                 # Deduction-mode match clock + one-shot match-end signal
                 # (server.py build_deduction_state); dict-keyed so unknown
                 # keys from a newer server just get ignored here.
@@ -2488,9 +2557,14 @@ class Game:
         # then kill that crew mate
         # THere is a delay of 15 seconds between killing a player
         hitp = pg.sprite.spritecollide(self.player, self.players_server, False)
+        # Consume the click flag once per frame regardless of whether a
+        # victim is actually in range, so a stray click can't queue up and
+        # fire later once the imposter happens to walk into someone.
+        clicked_kill_icon = self.mouse_kill_pressed
+        self.mouse_kill_pressed = False
         for hit in hitp:
             keys = pg.key.get_pressed()
-            if keys[pg.K_RETURN]:
+            if keys[pg.K_RETURN] or clicked_kill_icon:
                 if not self.deduction and (self.killcooldown - self.killcooldown_start) > 15000 and hit.alive_status == True and hit.imposter == False and self.player.imposter == True and self.invisible_play_count == 0 and self.emergency == False:
                     self.player.victim_id = hit.player_id
                     self.effect_sounds['imposter_kill_sound'].play()
@@ -2832,10 +2906,13 @@ class Game:
 
         # Emergency button and player collision detection
         hits = pg.sprite.spritecollide(self.player, self.items, False)
+        # Same one-shot consumption as the kill icon click flag above.
+        clicked_emergency_icon = self.mouse_emergency_pressed
+        self.mouse_emergency_pressed = False
         for hit in hits:
             if hit.type == 'emerg_btn' and not self.mini_map_button_status and self.emerg_meeting_button_status == 0 and self.sabotagecritical == False and self.player.alive_status == True and self.emergency == False:
                 keys = pg.key.get_pressed()
-                if keys[pg.K_SPACE]:
+                if keys[pg.K_SPACE] or clicked_emergency_icon:
                     if (self.meetingcooldown - self.meetingcooldown_start) > 15000:
                         # self.player.emerg_play_count = 0
                         self.emerg_meeting_button_status = 1
@@ -2868,7 +2945,7 @@ class Game:
         # the shared withdraw bar below instead of shown here.
         if self.player.imposter:
             if not self.deduction and not self.clear_asteroid_task_window_status:
-                self.draw_progress_bar_imposter(self.screen, 120, 10, self.bot_killed)
+                self.draw_progress_bar_imposter(self.screen, 252, 10, self.bot_killed)
         else:
             if not self.clear_asteroid_task_window_status:
                 self.draw_progress_bar(self.screen, 75, 10, self.missions_done)
@@ -2963,12 +3040,16 @@ class Game:
             self.task_btn = Button(self, "Nhiệm vụ", 14, 92, 33, 10, 10, "tsk_btn", WHITE, Transparent_Black, None, None,
                                    None, 0)
             self.task_btn.draw_text(self.screen)
+            self._draw_icon_key_label(pg.Rect(self.task_btn.x, self.task_btn.y, self.task_btn.width, self.task_btn.height),
+                                      "CLICK", ready=True, placement="below")
 
         # If task button show check is true and game mode is Multiplayer and player is crewmate then show task button only
         if self.task_button_show_status and self.gamemode == "Multiplayer" and not self.player.imposter:
             self.task_btn = Button(self, "Nhiệm vụ", 14, 92, 33, 10, 10, "tsk_btn", WHITE, Transparent_Black, None, None,
                                    None, 0)
             self.task_btn.draw_text(self.screen)
+            self._draw_icon_key_label(pg.Rect(self.task_btn.x, self.task_btn.y, self.task_btn.width, self.task_btn.height),
+                                      "CLICK", ready=True, placement="below")
 
         if self.gamemode == "Multiplayer":
             if not self.task_button_show_status and not self.player.imposter:
@@ -2976,6 +3057,8 @@ class Game:
                                        None,
                                        None, 0)
                 self.task_btn.draw_text(self.screen)
+                self._draw_icon_key_label(pg.Rect(self.task_btn.x, self.task_btn.y, self.task_btn.width, self.task_btn.height),
+                                          "CLICK", ready=True, placement="below")
 
         # Mini Map button
         # We show mini map only to alive players not ghosts
@@ -2983,6 +3066,8 @@ class Game:
                               Transparent_Black, "Assets/Images/UI/map_button.png", 56, 56, 255)
         if self.player.alive_status:
             self.map_btn.draw_Image(self.screen)
+            self._draw_icon_key_label(pg.Rect(self.map_btn.x, self.map_btn.y, self.map_btn.width, self.map_btn.height),
+                                      "TAB", ready=True, placement="below")
 
         # # AMBIENT SOUND CODE OPENS HERE -------------------------------------------------------------
         self.gamefuctions.load_ambient_sounds()
@@ -3336,15 +3421,15 @@ class Game:
         # Show bot alive count only to impostors
         # if game mode is Freeplay and player is imposter then show bot-alive
         if self.bot_count_show_status and self.gamemode == "Freeplay" and self.player.imposter and not self.clear_asteroid_task_window_status:
-            self.bot_bg = pg.Surface((255, 33)).convert_alpha()
+            self.bot_bg = pg.Surface((220, 33)).convert_alpha()
             self.bot_bg.fill((0, 0, 0))
-            self.screen.blit(self.bot_bg, (10, 10))
+            self.screen.blit(self.bot_bg, (20, 10))
             self.board.draw_bots_left(self.bot_count, 14)
         # if game mode is Multiplayer and player is imposter then show bot-alive
         if self.bot_count_show_status and self.gamemode == "Multiplayer" and self.player.imposter and not self.clear_asteroid_task_window_status:
-            self.bot_bg = pg.Surface((255, 33)).convert_alpha()
+            self.bot_bg = pg.Surface((220, 33)).convert_alpha()
             self.bot_bg.fill((0, 0, 0))
-            self.screen.blit(self.bot_bg, (10, 10))
+            self.screen.blit(self.bot_bg, (20, 10))
             witnesses_left = sum(1 for p in self.Players.values() if p.alive_status and not p.imposter)
             self.board.draw_bots_left(witnesses_left, 14)
 
@@ -3360,11 +3445,11 @@ class Game:
 
         " TIMER is loaded---------------------------------------------------- OPEN HERE"
         # This code actually draws the timer of Lights bulb On/Off on screen
-        if self.light_bulb_timer_icon_dim_status and self.time_left_to_light !=0 and self.player.imposter and not self.isdoingTask and not self.emerg_meeting_button_status and not self.eject:
+        if not self.deduction and self.light_bulb_timer_icon_dim_status and self.time_left_to_light !=0 and self.player.imposter and not self.isdoingTask and not self.emerg_meeting_button_status and not self.eject:
             self.display_light_bulb_icon_dim()
-        if self.light_bulb_timer_icon_status and self.time_left_to_light <= 0 and self.player.imposter and not self.isdoingTask and not self.emerg_meeting_button_status and not self.eject:
+        if not self.deduction and self.light_bulb_timer_icon_status and self.time_left_to_light <= 0 and self.player.imposter and not self.isdoingTask and not self.emerg_meeting_button_status and not self.eject:
             self.display_light_bulb_icon()
-        if self.light_timer_event and self.time_left_to_light !=0 and self.light_timer_visible_status and not self.emerg_meeting_button_status and self.player.imposter and not self.isdoingTask and not self.eject:
+        if not self.deduction and self.light_timer_event and self.time_left_to_light !=0 and self.light_timer_visible_status and not self.emerg_meeting_button_status and self.player.imposter and not self.isdoingTask and not self.eject:
             self.screen.blit(self.board.draw_light_timer_text(self.time_left_to_light, YELLOW, 30), (WIDTH-135, HEIGHT-90))
 
         # ---------------------------------------------------------------------------
@@ -3380,7 +3465,7 @@ class Game:
 
         # If emergency meeting is called then show this timer on voting screen
         if self.meeting_timer_event and self.time_left_to_end_meeting !=0 and self.meeting_timer_visible_status:
-            self.screen.blit(self.board.draw_meeting_timer_text(self.time_left_to_end_meeting, BLACK, 18), (WIDTH/2 + 50, HEIGHT-180))
+            self.screen.blit(self.board.draw_meeting_timer_text(self.time_left_to_end_meeting, WHITE, 18), (WIDTH/2 + 50, HEIGHT-180))
         
         # ---------------------------------------------------------------------------
         
@@ -3504,6 +3589,100 @@ class Game:
 
         pg.display.flip()
 
+    # Toggles the "lights off" sabotage (self.night) -- this is what the
+    # LIGHTS HUD icon shows the cooldown/ready state for. Pulled out of the
+    # K_LCTRL handler so a click on the icon can trigger the exact same
+    # logic as the keyboard shortcut.
+    def trigger_lights_sabotage(self):
+        c = pygame.Vector2(2472, 1721)
+        d = pygame.Vector2(self.player.pos.x, self.player.pos.y)
+        if (self.sabotagecooldown - self.sabotagecooldown_start) > 15000 and self.night == False and self.night_reactor == False and self.player.imposter == True:
+            self.night = True
+            self.night_sync += 1
+            self.light_bulb_timer_icon_status = False
+
+        elif self.night == True and c.distance_to(d) <= DETECT_RADIUS_SABOTAGE_FIX:
+            self.night = False
+
+            # if player or imposter turn on the light then
+            # reset the light timer and decrement light_timer_event
+            self.time_left_to_light = 15
+            pygame.time.set_timer(self.light_timer_event, 1000)
+            self.light_bulb_timer_icon_status = True
+
+            # if imposter or player turn on the light then
+            # reset the ractor cooldown timer and decrement
+            # reactor_timer_cooldown_event
+            self.time_left_to_boom_cooldown = 15
+            pg.time.set_timer(self.reactor_timer_cooldown_event, 1000)
+
+            self.sabotagecooldown_start = self.sabotagecooldown
+            self.night_sync += 1
+
+        elif self.player.imposter == True:
+            self.effect_sounds['imposter_kill_cooldown_sound'].play()
+
+    # Toggles the reactor meltdown sabotage (self.night_reactor) -- this is
+    # what the SABOTAGE HUD icon shows the cooldown/ready state for. Pulled
+    # out of the K_LSHIFT handler so a click on the icon can trigger the
+    # exact same logic as the keyboard shortcut.
+    def trigger_reactor_sabotage(self):
+        c = pygame.Vector2(889, 999)
+        d = pygame.Vector2(self.player.pos.x, self.player.pos.y)
+
+        if (self.sabotagecooldown - self.sabotagecooldown_start) > 15000 and self.night_reactor == False and self.night == False and self.player.imposter == True:
+            self.night_reactor = True
+            self.night_reactor_sync += 1
+            self.sabotagecritical = True
+
+            # if sabotage_reactor is recharged and player presses K_shift in multiplayer mod then
+            # show him meltdown_reactor timer of 20 secs and drecrement reactor_timer_event_client
+            # by 1000 milliseconds
+            if self.night_reactor and self.player.imposter and self.gamemode == "Multiplayer":
+                self.reactor_timer_visible_client_status = True
+                pg.time.set_timer(self.reactor_timer_event_client, 1000)
+            if self.night_reactor and self.gamemode == "Freeplay":
+                self.reactor_timer_visible_client_status = True
+                pg.time.set_timer(self.reactor_timer_event_client, 1000)
+
+            # If kill timer is off or kill timer equals = 0 then on key press K_Shift show reactor timer
+            # on screen and start reactor_timer_event that decrements per second
+            self.sabotage_timer_icon_status = False
+            pygame.mixer.Channel(0).play(pygame.mixer.Sound(self.effect_sounds['crises_alarm']),
+                                         loops=-1)
+            self.sabotagecriticaltimer_start = pygame.time.get_ticks()
+
+        # To Trigger Reactor meltdown Sabotage - Freeplay Mode
+        elif self.night_reactor == True and c.distance_to(d) <= DETECT_RADIUS_SABOTAGE_FIX:
+            self.night_reactor = False
+
+            # if crew mates turns the reactor on then again reset the cooldown timer
+            # so that it can again recharge for imposter to press K_shift and
+            # sabotage the reactor
+            self.time_left_to_boom_cooldown = 15
+            pg.time.set_timer(self.reactor_timer_cooldown_event, 1000)
+            # show the reactor cooldown timer to imposter
+            self.reactor_timer_cooldown_visible_status = True
+            # Hide the sabotage reactor highlighted icon
+            self.sabotage_timer_icon_status = False
+            # Show the sabotage reactor dimmed icon
+            self.sabotage_timer_icon_dim_status = True
+
+            # if imposter turn on the reactor then again reset the
+            # light timer to 15 so that it can be again used to turn
+            # off the lights and decrement the light_timer_event
+            self.time_left_to_light = 15
+            pg.time.set_timer(self.light_timer_event, 1000)
+            self.light_bulb_timer_icon_status = True
+
+            self.sabotagecooldown_start = self.sabotagecooldown
+            self.night_reactor_sync += 1
+            self.sabotagecritical = False
+            pygame.mixer.Channel(0).stop()
+
+        elif self.player.imposter == True:
+            self.effect_sounds['imposter_kill_cooldown_sound'].play()
+
     def events(self):
         # catch all events here
         for event in pg.event.get():
@@ -3583,92 +3762,17 @@ class Game:
                         self.vent_picker_options = []
                 # Create a toggle key for night fog switch
                 # if key is ctrl and game is not paused
+                # Deduction mode has no sabotage mechanic (see Phase 1) --
+                # these two guards are the only thing keeping
+                # trigger_lights_sabotage/trigger_reactor_sabotage
+                # Freeplay-only now that they're reusable methods (also
+                # called from the mouse-click HUD icon handler below, which
+                # needs the same guard -- see the click handler further down).
                 if (event.key == pg.K_LCTRL or event.key == pg.K_RCTRL) and not self.paused and self.emerg_meeting_button_status == 0 and self.gamemode == "Freeplay":
-
-                    c = pygame.Vector2(2472, 1721)
-                    d = pygame.Vector2(self.player.pos.x, self.player.pos.y)
-                    if (self.sabotagecooldown - self.sabotagecooldown_start) > 15000 and self.night == False and self.night_reactor == False and self.player.imposter == True:
-                        self.night = True
-                        self.night_sync += 1
-                        self.light_bulb_timer_icon_status = False
-
-                    elif self.night == True and c.distance_to(d) <= DETECT_RADIUS_SABOTAGE_FIX:
-                        self.night = False
-
-                        # if player or imposter turn on the light then
-                        # reset the light timer and decrement light_timer_event
-                        self.time_left_to_light = 15
-                        pygame.time.set_timer(self.light_timer_event, 1000)
-                        self.light_bulb_timer_icon_status = True
-
-                        # if imposter or player turn on the light then
-                        # reset the ractor cooldown timer and decrement
-                        # reactor_timer_cooldown_event
-                        self.time_left_to_boom_cooldown = 15
-                        pg.time.set_timer(self.reactor_timer_cooldown_event, 1000)
-
-                        self.sabotagecooldown_start = self.sabotagecooldown
-                        self.night_sync += 1
-
-                    elif self.player.imposter == True:
-                        self.effect_sounds['imposter_kill_cooldown_sound'].play()
+                    self.trigger_lights_sabotage()
 
                 if (event.key == pg.K_LSHIFT or event.key == pg.K_RSHIFT) and not self.paused and self.emerg_meeting_button_status == 0 and self.gamemode == "Freeplay":
-                    c = pygame.Vector2(889, 999)
-                    d = pygame.Vector2(self.player.pos.x, self.player.pos.y)
-
-                    if (self.sabotagecooldown - self.sabotagecooldown_start) > 15000 and self.night_reactor == False and self.night == False and self.player.imposter == True:
-                        self.night_reactor = True
-                        self.night_reactor_sync += 1
-                        self.sabotagecritical = True
-
-                        # if sabotage_reactor is recharged and player presses K_shift in multiplayer mod then
-                        # show him meltdown_reactor timer of 20 secs and drecrement reactor_timer_event_client
-                        # by 1000 milliseconds
-                        if self.night_reactor and self.player.imposter and self.gamemode == "Multiplayer":
-                            self.reactor_timer_visible_client_status = True
-                            pg.time.set_timer(self.reactor_timer_event_client, 1000)
-                        if self.night_reactor and self.gamemode == "Freeplay":
-                            self.reactor_timer_visible_client_status = True
-                            pg.time.set_timer(self.reactor_timer_event_client, 1000)
-
-                        # If kill timer is off or kill timer equals = 0 then on key press K_Shift show reactor timer
-                        # on screen and start reactor_timer_event that decrements per second
-                        self.sabotage_timer_icon_status = False
-                        pygame.mixer.Channel(0).play(pygame.mixer.Sound(self.effect_sounds['crises_alarm']),
-                                                     loops=-1)
-                        self.sabotagecriticaltimer_start = pygame.time.get_ticks()
-
-                    # To Trigger Reactor meltdown Sabotage - Freeplay Mode
-                    elif self.night_reactor == True and c.distance_to(d) <= DETECT_RADIUS_SABOTAGE_FIX:
-                        self.night_reactor = False
-
-                        # if crew mates turns the reactor on then again reset the cooldown timer
-                        # so that it can again recharge for imposter to press K_shift and 
-                        # sabotage the reactor
-                        self.time_left_to_boom_cooldown = 15
-                        pg.time.set_timer(self.reactor_timer_cooldown_event, 1000)
-                        # show the reactor cooldown timer to imposter
-                        self.reactor_timer_cooldown_visible_status = True
-                        # Hide the sabotage reactor highlighted icon
-                        self.sabotage_timer_icon_status = False
-                        # Show the sabotage reactor dimmed icon
-                        self.sabotage_timer_icon_dim_status = True
-
-                        # if imposter turn on the reactor then again reset the
-                        # light timer to 15 so that it can be again used to turn
-                        # off the lights and decrement the light_timer_event
-                        self.time_left_to_light = 15
-                        pg.time.set_timer(self.light_timer_event, 1000)
-                        self.light_bulb_timer_icon_status = True
-
-                        self.sabotagecooldown_start = self.sabotagecooldown
-                        self.night_reactor_sync += 1
-                        self.sabotagecritical = False
-                        pygame.mixer.Channel(0).stop()
-
-                    elif self.player.imposter == True:
-                        self.effect_sounds['imposter_kill_cooldown_sound'].play()
+                    self.trigger_reactor_sabotage()
 
                 # if key is P or Esc then pause the game
                 if event.key == pg.K_p or event.key == pg.K_ESCAPE:
@@ -3694,6 +3798,26 @@ class Game:
                         self.mini_map_button_status = not self.mini_map_button_status
                         # If mission box is opened then close it when we click on mini map button
                         self.task_button_click_status = False
+            # Action HUD icons (Emergency/Kill/Sabotage/Lights) -- clicking is
+            # an alternative to the keyboard shortcuts (Space/Enter/Ctrl/
+            # Shift), not a bypass of their rules: the same cooldown/
+            # proximity checks in update() still apply, this just feeds them
+            # an extra "pressed" signal. Gated the same way each icon is
+            # actually drawn, so clicking empty HUD space for a role that
+            # doesn't have that icon (e.g. a crewmate clicking where KILL
+            # would be) does nothing.
+            if event.type == pg.MOUSEBUTTONDOWN and event.button == LEFT_MOUSE_BUTTON and not self.paused and not self.emerg_meeting_button_status and not self.isdoingTask and not self.eject:
+                pos = pg.mouse.get_pos()
+                icon_rects = self.get_action_icon_rects()
+                if self.player.alive_status and icon_rects['emergency'].collidepoint(pos):
+                    self.mouse_emergency_pressed = True
+                elif self.player.imposter and self.player.alive_status and icon_rects['kill'].collidepoint(pos):
+                    self.mouse_kill_pressed = True
+                elif self.player.imposter and self.gamemode == "Freeplay" and icon_rects['sabotage'].collidepoint(pos):
+                    self.trigger_reactor_sabotage()
+                elif self.player.imposter and self.gamemode == "Freeplay" and icon_rects['lights'].collidepoint(pos):
+                    self.trigger_lights_sabotage()
+
             # For Pause Menu Buttons
             if event.type == pg.MOUSEBUTTONDOWN and event.button == LEFT_MOUSE_BUTTON and self.paused:
                 pos = pg.mouse.get_pos()
@@ -4138,7 +4262,7 @@ class Game:
 
     def draw_progress_bar_imposter(self, screen_surface, x, y, players_killed):
         color = RED
-        width = 350
+        width = 280
         height = 32
         # progress_width translucent black background bar
         self.bg_bar2 = pg.Surface((width, height)).convert_alpha()
@@ -4160,11 +4284,8 @@ class Game:
         # progress bar text
         taskbar_font = vn_font(12)
         text_surface = taskbar_font.render("BỊT ĐẦU MỐI TẤT CẢ NHÂN CHỨNG", True, WHITE)
-        text_surface2 = taskbar_font.render("BỊT ĐẦU MỐI TẤT CẢ NHÂN CHỨNG", True, WHITE)
-        if self.gamemode == "Freeplay":
-            self.screen.blit(text_surface, (138, 17))
-        else:
-            self.screen.blit(text_surface2, (138, 17))
+        text_rect = text_surface.get_rect(center=(x + width / 2, y + height / 2))
+        self.screen.blit(text_surface, text_rect)
 
         # 4th parameter is the thickness of border of rectangle
         pg.draw.rect(screen_surface, WHITE, outline_rect, 2)

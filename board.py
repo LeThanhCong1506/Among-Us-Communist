@@ -123,11 +123,11 @@ class Board:
             pos += 0.08
         if lesson:
             self.draw_wrapped_text(self.surface, lesson, vn_font(22), MENU_FONT_COLOR,
-                                   pg.Rect(110, self.height * 0.74, self.width - 220, 120), line_spacing=8)
+                                   pg.Rect(110, self.height * 0.8, self.width - 220, 120), line_spacing=8)
         for drawable in args:
             drawable.draw_on(self.surface)
         pg.display.update()
-        
+
     def draw_game_over_imposter(self, scoreboard: list, message: str, subtitle='', lesson='', *args):
         background = pg.image.load("Assets/Images/Alerts/defeat.PNG")
         #self.surface.fill(background)
@@ -144,7 +144,7 @@ class Board:
             pos += 0.08
         if lesson:
             self.draw_wrapped_text(self.surface, lesson, vn_font(22), MENU_FONT_COLOR,
-                                   pg.Rect(110, self.height * 0.74, self.width - 220, 120), line_spacing=8)
+                                   pg.Rect(110, self.height * 0.8, self.width - 220, 120), line_spacing=8)
         for drawable in args:
             drawable.draw_on(self.surface)
         pg.display.update()
