@@ -487,11 +487,13 @@ def main():
               room_imposter_count = 1
           elif arr and arr[0] == 'quiz result':
             # ['quiz result', pid, question_id, is_correct] -- question_id
-            # isn't tracked server-side (nothing needs it); the interesting
-            # side effect is granting the CREWMATE a temporary tracking
-            # arrow to the imposter regardless of whether they got it right
-            # (blending in / attempting is what matters for the imposter's
-            # own idle timer too, further down).
+            # isn't tracked server-side (nothing needs it). A CREWMATE only
+            # gets the tracking arrow on a CORRECT answer -- a wrong one
+            # still counts as "progress" for the idle timer, but doesn't
+            # reveal the imposter's direction. The imposter's own
+            # withdraw-credit side of this (further down) still counts any
+            # attempt, right or wrong, since blending in is about visibly
+            # participating, not being right.
             pid = arr[1]
             is_correct = arr[3]
             minion = minionmap.get(pid)
@@ -504,9 +506,9 @@ def main():
               minion.last_progress_ms = now_ts
               if is_correct:
                 minion.quiz_correct += 1
-              if not minion.imposter:
+              if not minion.imposter and is_correct:
                 minion.tracking_until = now_ts + TRACKING_DURATION_SECONDS
-              else:
+              elif minion.imposter:
                 # Withdrawing has to be earned: 1 finished question (right
                 # or wrong -- blending in is what counts) = 1 withdraw
                 # credit, 1:1, so the imposter can't just camp Phòng Tài

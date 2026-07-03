@@ -703,6 +703,10 @@ class Game:
         # match clock, crew wins via correct vote. Freeplay keeps the
         # original Among Us mechanics for solo testing of both roles.
         self.deduction = (self.gamemode == "Multiplayer")
+        # In-game controls/how-to-play reference (F1) -- separate text per
+        # mode since Freeplay's classic kill/sabotage and deduction mode's
+        # quiz/tracking-arrow/withdraw rules share almost no controls.
+        self.help_overlay_open = False
         # Quiz stations (Phase 3): replaces the old per-task minigames as
         # what players do at task stations. Both crew and imposter can
         # answer -- the imposter blends in this way instead of being locked
@@ -1215,6 +1219,46 @@ class Game:
         end = (self.case_brief_ack_rect.right - 10, self.case_brief_ack_rect.top + 13)
         pg.draw.lines(self.screen, WHITE, False, (start, mid, end), 5)
 
+    def draw_help_overlay(self):
+        """Controls/how-to-play reference, toggled with F1 -- for players
+        who forgot a keybinding or the current mode's rules mid-match,
+        without having to quit to the main menu's Help screen (which also
+        still only shows the generic Freeplay-style tutorial art)."""
+        if not self.help_overlay_open:
+            return
+        lines = HELP_LINES_DEDUCTION if self.deduction else HELP_LINES_FREEPLAY
+        panel_height = 120 + len(lines) * 30 + (70 if self.deduction else 0)
+        panel = pg.Surface((880, panel_height), pg.SRCALPHA)
+        panel.fill((10, 10, 18, 235))
+        rect = panel.get_rect(center=(WIDTH / 2, HEIGHT / 2))
+        self.screen.blit(panel, rect)
+        pg.draw.rect(self.screen, WHITE, rect, width=2, border_radius=10)
+
+        title_font = vn_font(28)
+        title = title_font.render("HƯỚNG DẪN CHƠI", True, YELLOW)
+        self.screen.blit(title, title.get_rect(center=(rect.centerx, rect.top + 30)))
+
+        key_font = vn_font(16)
+        desc_font = vn_font(16)
+        y = rect.top + 66
+        key_x = rect.left + 30
+        desc_x = rect.left + 300
+        for key_label, desc in lines:
+            key_surf = key_font.render(key_label, True, YELLOW)
+            self.screen.blit(key_surf, (key_x, y))
+            desc_surf = desc_font.render(desc, True, WHITE)
+            self.screen.blit(desc_surf, (desc_x, y))
+            y += 30
+
+        if self.deduction:
+            win_font = vn_font(15)
+            self.board.draw_wrapped_text(self.screen, HELP_WIN_CONDITIONS_DEDUCTION, win_font, GREEN,
+                                         pg.Rect(rect.left + 30, y + 10, rect.width - 60, 60), line_spacing=4)
+
+        hint_font = vn_font(14)
+        hint = hint_font.render("Nhấn F1 để đóng", True, LIGHTGREY)
+        self.screen.blit(hint, hint.get_rect(midbottom=(rect.centerx, rect.bottom - 12)))
+
     def check_state_dialogs(self):
         if self.night != self._dialog_last_night:
             self.show_dialog(SYSTEM_DIALOGS["lights_off" if self.night else "lights_on"])
@@ -1398,7 +1442,7 @@ class Game:
         (asteroids, DETECT_RADIUS=250) overlaps a vent's radius closely
         enough that pressing Space to vent also opened a quiz underneath
         it, freezing the imposter mid-teleport via the quiz's isdoingTask."""
-        if self.quiz_window is not None:
+        if self.quiz_window is not None or self.help_overlay_open:
             return
         if any(item.type == 'vent' for item in pg.sprite.spritecollide(self.player, self.items, False)):
             return
@@ -1429,6 +1473,11 @@ class Game:
             self.correct_answers += 1
             self.effect_sounds['task_completed'].play()
             self.show_dialog(SYSTEM_DIALOGS["quiz_correct"])
+        elif self.deduction and not self.player.imposter:
+            # Crew only gets the tracking arrow on a correct answer (see
+            # server.py's 'quiz result' handler) -- call that out
+            # specifically instead of the generic wrong-answer message.
+            self.show_dialog(SYSTEM_DIALOGS["quiz_wrong_crew"])
         else:
             self.show_dialog(SYSTEM_DIALOGS["quiz_wrong"])
         if self.gamemode == "Multiplayer":
@@ -1449,7 +1498,8 @@ class Game:
         checked emerg_meeting_button_status, which is how the clock ended up
         rendered on top of the vote/eject text."""
         return (self.emerg_meeting_button_status or self.emerg_meeting_report_status
-                or self.eject or self.case_brief_active or self.quiz_window is not None)
+                or self.eject or self.case_brief_active or self.quiz_window is not None
+                or self.help_overlay_open)
 
     def nearby_vent_options(self, count=3):
         """Up to `count` vents nearest to the player, EXCLUDING the one
@@ -1458,6 +1508,16 @@ class Game:
         with it -- see the Alt-hold check above)."""
         vents_by_distance = sorted(self.vent, key=lambda v: self.player.pos.distance_to(vec(v)))
         return vents_by_distance[1:count + 1]
+
+    def has_line_of_sight(self, pos_a, pos_b):
+        """True if no wall tile sits on the straight line between two
+        world-space points. Used to hide other players standing on the far
+        side of a wall in deduction mode without limiting vision distance
+        otherwise -- see the sprite-drawing loop in draw()."""
+        for wall in self.walls:
+            if wall.rect.clipline(pos_a.x, pos_a.y, pos_b.x, pos_b.y):
+                return False
+        return True
 
     def draw_arrow_around_player(self, target_pos, colour=YELLOW, label=None):
         """Small arrow orbiting the local player's own on-screen sprite,
@@ -2685,6 +2745,14 @@ class Game:
         # draw all sprites/sprite group on screen
         # Draw rectangle along all sprites/ tiles/ walls/ objects to debug
         for sprite in self.all_sprites:
+            # Deduction mode: vision stays normal/wide, but other players
+            # hidden by a wall between them and you shouldn't be visible
+            # through it -- unlike the old flashlight-radius fog approach,
+            # this only hides what a wall would actually block, not
+            # everything past a fixed distance. See has_line_of_sight().
+            if (self.deduction and isinstance(sprite, Player) and sprite is not self.player
+                    and not self.has_line_of_sight(self.player.pos, sprite.pos)):
+                continue
             self.screen.blit(sprite.image, self.camera.apply(sprite))
             # if debug button is ON (shows rectangle borders on sprite)
             if self.draw_debug:
@@ -2698,6 +2766,58 @@ class Game:
             if self.draw_debug:
                 for y in range(0, HEIGHT, TILESIZE):
                     pg.draw.line(self.screen, LIGHTGREY, (0, y), (WIDTH, y))
+
+        """ Fog is loaded 3rd """
+        # Light Effect - Night Mode
+        if self.night:
+            self.render_fog()
+        if self.night_reactor:
+            self.render_fog_reactor()
+        # Personal "lights off" for idle crewmates (Phase 5 follow-up):
+        # reuses the same fog/light-mask effect as the old lights sabotage,
+        # but purely locally -- it only darkens MY OWN screen when MY OWN
+        # id is in self.idle_ids, never broadcast or synced, so nobody else
+        # is affected by (or can even see) another player's idle penalty.
+        # Stacked with an extra flat black layer (self.dim_screen, already
+        # alpha 180) on top since the plain fog alone reads too close to the
+        # normal lit screen to feel like a real penalty. Imposter is exempt
+        # entirely -- they don't need to answer questions to "stay lit", so
+        # this never applies to them regardless of their own idle_ids status.
+        player_in_dark = (self.deduction and not self.player.imposter
+                           and self.player.player_id in self.idle_ids)
+        # (Vision stays normal/wide in deduction mode -- no radius-based
+        # flashlight fog. Seeing through walls is instead prevented by
+        # per-sprite wall occlusion in the main sprite-drawing loop above,
+        # see should_render_player().)
+        if player_in_dark:
+            self.render_fog()
+            self.screen.blit(self.dim_screen, (0, 0))
+            self.screen.blit(self.dim_screen, (0, 0))
+
+            # Station beacons + persistent banner: the fog/dim layers above
+            # would otherwise also darken the task stations themselves,
+            # making them just as hard to find as everything else -- so
+            # these are drawn AFTER the darkness, punching through it, and
+            # the reminder banner stays up the whole time instead of just
+            # the initial 4s toast dialog (see check_state_dialogs).
+            beacon_font = vn_font(13)
+            for _key, title, pos in STATIONS:
+                screen_pos = (pos[0] + self.camera.camera.x, pos[1] + self.camera.camera.y)
+                pulse = 6 + int(3 * math.sin(pygame.time.get_ticks() / 150))
+                pg.draw.circle(self.screen, YELLOW, screen_pos, 14 + pulse, 3)
+                label_surf = beacon_font.render(title, True, YELLOW)
+                self.screen.blit(label_surf, label_surf.get_rect(midtop=(screen_pos[0], screen_pos[1] + 20)))
+
+            banner_font = vn_font(20)
+            banner_surf = banner_font.render(
+                "ĐÈN ĐÃ TẮT -- Hãy đến một trạm nhiệm vụ để mở lại đèn!", True, YELLOW)
+            self.screen.blit(banner_surf, banner_surf.get_rect(midtop=(WIDTH / 2, 90)))
+
+        # The following are drawn AFTER every fog/darkness layer above
+        # (baseline deduction-mode vision limit, idle-darkness, night
+        # sabotage) so they always render at full brightness regardless of
+        # how dark the map currently is -- otherwise BLEND_MULT would darken
+        # these right along with everything else, defeating their purpose.
 
         """ Idle warning icons (Phase 5) -- above any player's sprite whose
         id is in self.idle_ids (from the server's 'deduction state'
@@ -2735,48 +2855,6 @@ class Game:
         instead of a random one. """
         for i, vent_pos in enumerate(self.vent_picker_options):
             self.draw_arrow_around_player(vec(vent_pos), YELLOW, str(i + 1))
-
-        """ Fog is loaded 3rd """
-        # Light Effect - Night Mode
-        if self.night:
-            self.render_fog()
-        if self.night_reactor:
-            self.render_fog_reactor()
-        # Personal "lights off" for idle crewmates (Phase 5 follow-up):
-        # reuses the same fog/light-mask effect as the old lights sabotage,
-        # but purely locally -- it only darkens MY OWN screen when MY OWN
-        # id is in self.idle_ids, never broadcast or synced, so nobody else
-        # is affected by (or can even see) another player's idle penalty.
-        # Stacked with an extra flat black layer (self.dim_screen, already
-        # alpha 180) on top since the plain fog alone reads too close to the
-        # normal lit screen to feel like a real penalty. Imposter is exempt
-        # entirely -- they don't need to answer questions to "stay lit", so
-        # this never applies to them regardless of their own idle_ids status.
-        player_in_dark = (self.deduction and not self.player.imposter
-                           and self.player.player_id in self.idle_ids)
-        if player_in_dark:
-            self.render_fog()
-            self.screen.blit(self.dim_screen, (0, 0))
-            self.screen.blit(self.dim_screen, (0, 0))
-
-            # Station beacons + persistent banner: the fog/dim layers above
-            # would otherwise also darken the task stations themselves,
-            # making them just as hard to find as everything else -- so
-            # these are drawn AFTER the darkness, punching through it, and
-            # the reminder banner stays up the whole time instead of just
-            # the initial 4s toast dialog (see check_state_dialogs).
-            beacon_font = vn_font(13)
-            for _key, title, pos in STATIONS:
-                screen_pos = (pos[0] + self.camera.camera.x, pos[1] + self.camera.camera.y)
-                pulse = 6 + int(3 * math.sin(pygame.time.get_ticks() / 150))
-                pg.draw.circle(self.screen, YELLOW, screen_pos, 14 + pulse, 3)
-                label_surf = beacon_font.render(title, True, YELLOW)
-                self.screen.blit(label_surf, label_surf.get_rect(midtop=(screen_pos[0], screen_pos[1] + 20)))
-
-            banner_font = vn_font(20)
-            banner_surf = banner_font.render(
-                "ĐÈN ĐÃ TẮT -- Hãy đến một trạm nhiệm vụ để mở lại đèn!", True, YELLOW)
-            self.screen.blit(banner_surf, banner_surf.get_rect(midtop=(WIDTH / 2, 90)))
 
         # If reactor is turned on by some crew mate in either game mode then
         # hide and reset the reactor_meltdown_timer, which displayed when imposter sabotages
@@ -2953,7 +3031,10 @@ class Game:
             if not self.deduction and not self.clear_asteroid_task_window_status:
                 self.draw_progress_bar_imposter(self.screen, 252, 10, self.bot_killed)
         else:
-            if not self.clear_asteroid_task_window_status:
+            # Deduction mode has no "complete all tasks" win condition
+            # (quiz stations only grant tracking arrows now), so this
+            # 0-8 progress bar no longer corresponds to anything.
+            if not self.deduction and not self.clear_asteroid_task_window_status:
                 self.draw_progress_bar(self.screen, 75, 10, self.missions_done)
 
         """ Shared fund-withdrawal progress (Phase 5 follow-up) -- visible
@@ -3049,22 +3130,29 @@ class Game:
             self._draw_icon_key_label(pg.Rect(self.task_btn.x, self.task_btn.y, self.task_btn.width, self.task_btn.height),
                                       "CLICK", ready=True, placement="below")
 
-        # If task button show check is true and game mode is Multiplayer and player is crewmate then show task button only
-        if self.task_button_show_status and self.gamemode == "Multiplayer" and not self.player.imposter:
-            self.task_btn = Button(self, "Nhiệm vụ", 14, 92, 33, 10, 10, "tsk_btn", WHITE, Transparent_Black, None, None,
-                                   None, 0)
-            self.task_btn.draw_text(self.screen)
-            self._draw_icon_key_label(pg.Rect(self.task_btn.x, self.task_btn.y, self.task_btn.width, self.task_btn.height),
-                                      "CLICK", ready=True, placement="below")
-
-        if self.gamemode == "Multiplayer":
-            if not self.task_button_show_status and not self.player.imposter:
-                self.task_btn = Button(self, "Nhiệm vụ", 14, 92, 33, 10, 10, "tsk_btn", WHITE, Transparent_Black, None,
-                                       None,
+        # The "Nhiệm vụ" button opened a checklist of the 8 old minigame
+        # names (draw_missions_box), which have all been dormant since the
+        # Phase 3 quiz-station refactor -- showing it in deduction mode
+        # would just be a misleading, cluttered checklist of tasks that no
+        # longer exist. self.task_btn is left None here, which the click
+        # handler already guards against (see "Task Button" in events()).
+        if not self.deduction:
+            # If task button show check is true and game mode is Multiplayer and player is crewmate then show task button only
+            if self.task_button_show_status and self.gamemode == "Multiplayer" and not self.player.imposter:
+                self.task_btn = Button(self, "Nhiệm vụ", 14, 92, 33, 10, 10, "tsk_btn", WHITE, Transparent_Black, None, None,
                                        None, 0)
                 self.task_btn.draw_text(self.screen)
                 self._draw_icon_key_label(pg.Rect(self.task_btn.x, self.task_btn.y, self.task_btn.width, self.task_btn.height),
                                           "CLICK", ready=True, placement="below")
+
+            if self.gamemode == "Multiplayer":
+                if not self.task_button_show_status and not self.player.imposter:
+                    self.task_btn = Button(self, "Nhiệm vụ", 14, 92, 33, 10, 10, "tsk_btn", WHITE, Transparent_Black, None,
+                                           None,
+                                           None, 0)
+                    self.task_btn.draw_text(self.screen)
+                    self._draw_icon_key_label(pg.Rect(self.task_btn.x, self.task_btn.y, self.task_btn.width, self.task_btn.height),
+                                              "CLICK", ready=True, placement="below")
 
         # Mini Map button
         # We show mini map only to alive players not ghosts
@@ -3431,8 +3519,13 @@ class Game:
             self.bot_bg.fill((0, 0, 0))
             self.screen.blit(self.bot_bg, (20, 10))
             self.board.draw_bots_left(self.bot_count, 14)
-        # if game mode is Multiplayer and player is imposter then show bot-alive
-        if self.bot_count_show_status and self.gamemode == "Multiplayer" and self.player.imposter and not self.clear_asteroid_task_window_status:
+        # "Đầu mối còn lại" (witnesses left) was a kill-mechanic counter --
+        # deduction mode has no kill, so it never meant anything there and
+        # is hidden entirely (self.deduction is always True whenever
+        # gamemode == "Multiplayer", so this condition never actually
+        # differed from just deleting the block, but spelled out for clarity).
+        if (self.bot_count_show_status and self.gamemode == "Multiplayer" and not self.deduction
+                and self.player.imposter and not self.clear_asteroid_task_window_status):
             self.bot_bg = pg.Surface((220, 33)).convert_alpha()
             self.bot_bg.fill((0, 0, 0))
             self.screen.blit(self.bot_bg, (20, 10))
@@ -3589,6 +3682,19 @@ class Game:
         if self.quiz_window is not None:
             self.screen.blit(self.dim_screen, (0, 0))
             self.quiz_window.draw(self.screen, self.board)
+
+        if self.help_overlay_open:
+            self.screen.blit(self.dim_screen, (0, 0))
+        self.draw_help_overlay()
+
+        # Small persistent reminder that F1 exists -- otherwise the whole
+        # point (a lookup for a control/rule someone forgot) doesn't help
+        # if nobody knows it's there in the first place. deduction_overlay_active()
+        # covers every full-screen overlay in both modes (meetings, eject,
+        # case brief, quiz, help itself), not just deduction-mode ones.
+        if not self.paused and not self.deduction_overlay_active():
+            f1_hint = vn_font(12).render("F1: Hướng dẫn", True, LIGHTGREY)
+            self.screen.blit(f1_hint, f1_hint.get_rect(bottomleft=(10, HEIGHT - 6)))
 
         self.display_case_brief()
         self.display_dialog()
@@ -3751,6 +3857,14 @@ class Game:
                 # if key is H and game is not paused
                 if event.key == pg.K_h and not self.paused:
                     self.draw_debug = not self.draw_debug
+                # In-game help overlay (controls/how-to-play, F1) -- blocked
+                # while any other full-screen overlay is up so they can't
+                # stack, and freezes movement like the others while open.
+                if (event.key == pg.K_F1 and not self.paused and self.quiz_window is None
+                        and not self.emerg_meeting_button_status and not self.emerg_meeting_report_status
+                        and not self.eject):
+                    self.help_overlay_open = not self.help_overlay_open
+                    self.isdoingTask = self.help_overlay_open
                 # Vent teleport picker confirm -- 1/2/3 selects the
                 # correspondingly-numbered arrow shown while Alt is held
                 # hidden in a vent (self.vent_picker_options, see update()
@@ -3780,9 +3894,14 @@ class Game:
                 if (event.key == pg.K_LSHIFT or event.key == pg.K_RSHIFT) and not self.paused and self.emerg_meeting_button_status == 0 and self.gamemode == "Freeplay":
                     self.trigger_reactor_sabotage()
 
-                # if key is P or Esc then pause the game
+                # if key is P or Esc then pause the game -- but if the help
+                # overlay is open, Esc/P closes THAT first instead of
+                # stacking the pause menu underneath/on top of it.
                 if event.key == pg.K_p or event.key == pg.K_ESCAPE:
-                    if not self.emergency:
+                    if self.help_overlay_open:
+                        self.help_overlay_open = False
+                        self.isdoingTask = False
+                    elif not self.emergency:
                         self.effect_sounds['go_back'].play()
                         self.paused = not self.paused
 
