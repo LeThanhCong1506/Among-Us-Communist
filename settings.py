@@ -46,6 +46,10 @@ NO_OF_BOTS = 9
 # Quiz stations (Phase 3): how long a station stays unusable after being
 # answered, so a player can't stand in one spot and farm the same station.
 STATION_COOLDOWN_MS = 20000
+# A wrong answer only locks that station for a short retry window instead of
+# the full cooldown above, since a wrong answer earns nothing (no tracking
+# arrow, no idle-timer reset) and the player should be able to try again soon.
+WRONG_ANSWER_RETRY_MS = 5000
 # Fund withdrawal (Phase 5): imposter-only, Multiplayer-only channel time in
 # Phòng Tài chính, plus a client-side cooldown estimate (the server enforces
 # its own copy of this and has final say -- see server.py's WITHDRAW_COOLDOWN_SECONDS).
@@ -60,6 +64,14 @@ WITHDRAW_WIN_COUNT = 3  # must match server.py's own copy
 # cheat against here -- only the imposter's own client cares.
 VENT_HIDE_DURATION_MS = 10000
 VENT_REENTRY_COOLDOWN_MS = 20000
+
+# Deduction-mode meeting pacing ("Truy Tim Ke Tham Nhung"): a full discussion
+# window before voting opens, then a shorter vote window than the classic
+# Among Us timing -- Freeplay keeps its original short chat + 30s vote
+# pacing untouched (see game.py's meeting state machine).
+DISCUSSION_DURATION_MS = 30000
+VOTE_DURATION_MS_DEDUCTION = 15000
+
 TILESIZE = 32
 GRIDWIDTH = WIDTH / TILESIZE
 GRIDHEIGHT = HEIGHT / TILESIZE
@@ -132,7 +144,9 @@ SYSTEM_DIALOGS = {
     "report": "Một đầu mối bất thường đã được báo cáo. Hãy biểu quyết dựa trên bằng chứng.",
     "no_eject": "Không ai bị đình chỉ. Phiếu biểu quyết chưa đủ căn cứ.",
     "quiz_correct": "Chính xác!",
-    "quiz_wrong": "Chưa đúng. Hãy thử một trạm khác sau ít phút.",
+    # Countdown suffix (" Thử lại sau Ns.") is appended live by
+    # update_wrong_retry_notice() in game.py -- keep this base text short.
+    "quiz_wrong": "Chưa đúng.",
     # Crew-only wrong-answer message (deduction mode) -- only a correct
     # answer grants the tracking arrow, so this clarifies why nothing
     # happened, unlike the imposter's copy of "quiz_wrong" (they still earn
@@ -143,7 +157,7 @@ SYSTEM_DIALOGS = {
     "eject_time_penalty": "Đình chỉ nhầm cán bộ liêm chính: mất 60 giây điều tra.",
     # Personal/local -- only the idle player sees these (see idle_ids in
     # game.py's draw()/check_state_dialogs).
-    "idle_dark": "Bạn đã không làm nhiệm vụ quá lâu. Hãy đến trạm gần nhất để mở lại đèn!",
+    "idle_dark": "Bạn đã không làm nhiệm vụ quá lâu. Hãy đến trạm gần nhất và trả lời ĐÚNG để mở lại đèn!",
     "idle_bright": "Đèn đã sáng trở lại.",
     # Tracking arrows (replaces the old evidence-board mechanic) -- only the
     # crewmate who just gained one, and only the imposter being warned, see
@@ -163,7 +177,7 @@ CASE_BRIEF = (
 # board, and the imposter's fund-withdrawal win condition instead of kills.
 CASE_BRIEF_DEDUCTION = (
     "Vụ việc: 5 cán bộ, 1 người trong số đó tham nhũng. Trả lời câu hỏi tại các trạm (la bàn góc phải chỉ đường).\n"
-    "Cán bộ liêm chính: mỗi câu trả lời ĐÚNG sẽ hiện mũi tên chỉ hướng kẻ tham nhũng trong ít giây, trả lời sai thì không. Bỏ phiếu đình chỉ đúng người để thắng.\n"
+    "Cán bộ liêm chính: mỗi câu trả lời ĐÚNG sẽ mở lại đèn của bạn và hiện mũi tên chỉ hướng kẻ tham nhũng trong ít giây; trả lời sai thì không được gì và phải chờ 5 giây mới thử lại trạm đó. Bỏ phiếu đình chỉ đúng người để thắng.\n"
     "Cán bộ tham nhũng: cũng phải trả lời câu hỏi để không bị nghi ngờ -- nhưng mỗi lần cán bộ liêm chính có mũi tên, bạn cũng sẽ thấy mũi tên chỉ về phía họ để né tránh. Mỗi câu trả lời xong mở khóa 1 lượt rút quỹ tại Phòng Tài chính; thắng bằng cách rút đủ 3 lần hoặc trụ vững đến hết giờ."
 )
 
@@ -174,7 +188,7 @@ CASE_BRIEF_DEDUCTION = (
 HELP_LINES_FREEPLAY = [
     ("WASD / Mũi tên", "Di chuyển"),
     ("Space", "Làm nhiệm vụ tại trạm, hoặc ẩn hình khi đứng trên cống"),
-    ("Alt (khi đang ẩn trong cống)", "Giữ để hiện mũi tên chọn cống, bấm 1/2/3 để dịch chuyển"),
+    ("Khi đang ẩn trong cống", "Mũi tên chọn cống tự hiện, bấm 1/2/3 để dịch chuyển"),
     ("Enter", "Giết cán bộ liêm chính gần đó (tham nhũng) / báo cáo xác"),
     ("Ctrl", "Phá hoại đèn (tham nhũng)"),
     ("Shift", "Phá hoại lò phản ứng (tham nhũng)"),
@@ -187,7 +201,7 @@ HELP_LINES_DEDUCTION = [
     ("WASD / Mũi tên", "Di chuyển"),
     ("Space (tại trạm nhiệm vụ)", "Trả lời câu hỏi -- cả cán bộ liêm chính lẫn tham nhũng"),
     ("Space (đứng trên cống)", "Ẩn hình vào cống (chỉ cán bộ tham nhũng)"),
-    ("Alt (khi đang ẩn trong cống)", "Giữ để hiện mũi tên chọn cống, bấm 1/2/3 để dịch chuyển"),
+    ("Khi đang ẩn trong cống", "Mũi tên chọn cống tự hiện, bấm 1/2/3 để dịch chuyển"),
     ("Enter (trong Phòng Tài chính)", "Giữ để rút quỹ (chỉ tham nhũng, cần đủ lượt từ nhiệm vụ)"),
     ("Space (nút khẩn cấp) / Click xác", "Gọi họp bỏ phiếu"),
     ("Tab", "Xem minimap -- chấm xanh: trạm sẵn dùng, chấm xám: đang hồi"),

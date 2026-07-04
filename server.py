@@ -90,13 +90,18 @@ class Minion:
     self.withdraw_credits = 0
     self.last_progress_ms = None
     # Crewmate-only: set to time.time() + TRACKING_DURATION_SECONDS every
-    # time this player finishes a station question (right or wrong -- see
-    # the 'quiz result' handler). While in the future, everyone's client
+    # time this player answers a station question CORRECTLY (see the
+    # 'quiz result' handler). While in the future, everyone's client
     # already knows this player's live position (it's in every 'player
     # locations' snapshot), so the only NEW information a "tracking" arrow
     # needs is *that this specific crewmate currently has one active* --
     # see tracking_crew in build_deduction_state.
     self.tracking_until = None
+    # Crewmate-only: True the instant they answer a question WRONG, cleared
+    # the instant they answer one CORRECTLY -- feeds into idle_ids so a
+    # wrong answer darkens their screen ("mo den") immediately instead of
+    # only after IDLE_THRESHOLD_SECONDS of not trying at all.
+    self.wrong_dark = False
 
 
 minionmap = {}          # player_id -> Minion
@@ -165,7 +170,11 @@ IDLE_THRESHOLD_SECONDS = 100
 # (apply_update sets m.voted/m.emergency_sync), the server can just watch
 # those and be the single source of truth for who (if anyone) gets ejected,
 # instead of two clients potentially reaching slightly different tallies.
-MEETING_TIMEOUT_SECONDS = 31  # 30s client-side meeting + 1s grace for late votes
+
+# Client-side deduction-mode meeting flow: ~1.5s alert + 30s discussion
+# (DISCUSSION_DURATION_MS in settings.py) + 15s vote (VOTE_DURATION_MS_DEDUCTION)
+# = 46.5s, plus grace for late votes/network lag.
+MEETING_TIMEOUT_SECONDS = 48
 EJECT_TIME_PENALTY_SECONDS = 60
 meeting_seq = 0        # highest emergency_sync already turned into a countdown
 meeting_deadline = None
@@ -316,8 +325,13 @@ def build_deduction_state(game_started, now):
     if imposter_minion is not None:
       state["withdraw_credits"] = {imposter_minion.player_id: imposter_minion.withdraw_credits}
   if game_started:
+    # A crewmate is "in the dark" either from a fresh wrong answer
+    # (wrong_dark, cleared instantly by the next correct one) or from going
+    # IDLE_THRESHOLD_SECONDS without even trying a station -- the imposter
+    # is exempt client-side regardless (see game.py's player_in_dark).
     idle_ids = [pid for pid, m in minionmap.items()
-                if m.last_progress_ms is not None and now - m.last_progress_ms > IDLE_THRESHOLD_SECONDS]
+                if m.wrong_dark
+                or (m.last_progress_ms is not None and now - m.last_progress_ms > IDLE_THRESHOLD_SECONDS)]
     if idle_ids:
       state["idle_ids"] = idle_ids
   if eject_result is not None:
@@ -488,12 +502,14 @@ def main():
           elif arr and arr[0] == 'quiz result':
             # ['quiz result', pid, question_id, is_correct] -- question_id
             # isn't tracked server-side (nothing needs it). A CREWMATE only
-            # gets the tracking arrow on a CORRECT answer -- a wrong one
-            # still counts as "progress" for the idle timer, but doesn't
-            # reveal the imposter's direction. The imposter's own
+            # gets the tracking arrow AND clears their idle-darkness
+            # ("mo den", via last_progress_ms/wrong_dark) on a CORRECT
+            # answer -- a WRONG one immediately darkens them (wrong_dark),
+            # it doesn't just fail to help. The imposter's own
             # withdraw-credit side of this (further down) still counts any
             # attempt, right or wrong, since blending in is about visibly
-            # participating, not being right.
+            # participating, not being right -- so their idle timer also
+            # still resets on any attempt.
             pid = arr[1]
             is_correct = arr[3]
             minion = minionmap.get(pid)
@@ -503,16 +519,21 @@ def main():
               # is computed for this tick (and may run several times between
               # ticks), so `now` isn't in scope here.
               now_ts = time.time()
-              minion.last_progress_ms = now_ts
               if is_correct:
                 minion.quiz_correct += 1
-              if not minion.imposter and is_correct:
-                minion.tracking_until = now_ts + TRACKING_DURATION_SECONDS
-              elif minion.imposter:
+              if not minion.imposter:
+                if is_correct:
+                  minion.last_progress_ms = now_ts
+                  minion.tracking_until = now_ts + TRACKING_DURATION_SECONDS
+                  minion.wrong_dark = False
+                else:
+                  minion.wrong_dark = True
+              else:
                 # Withdrawing has to be earned: 1 finished question (right
                 # or wrong -- blending in is what counts) = 1 withdraw
                 # credit, 1:1, so the imposter can't just camp Phòng Tài
                 # chính from minute one.
+                minion.last_progress_ms = now_ts
                 minion.withdraw_credits += 1
           elif arr and arr[0] == 'withdraw done':
             # ['withdraw done', pid] -- the client only sends this after

@@ -78,8 +78,8 @@ class Game:
         self.screen.get_height()
         self.invisible_play_count = 0
         # Vent teleport picker (up to 3 nearest other vents, numbered
-        # 1/2/3): populated while imposter holds Alt hidden in a vent,
-        # cleared the instant Alt is released -- see nearby_vent_options().
+        # 1/2/3): populated automatically the instant the imposter hides in
+        # a vent, cleared the instant they un-hide -- see nearby_vent_options().
         self.vent_picker_options = []
         # Vent hide/reentry limits: set when entering a vent (ticks of
         # entry), cleared on exit (manual or auto-timeout); reentry cooldown
@@ -353,6 +353,11 @@ class Game:
         self.time_left_to_end_meeting = 30
         self.meeting_timer_event = pygame.USEREVENT + 4
         self.meeting_timer_visible_status = False
+        # Deduction mode only: discussion window before voting opens, shown
+        # via the same meeting_timer_event tick (Freeplay never sets this
+        # flag True, so its meeting keeps the original short chat + 30s vote).
+        self.time_left_to_end_discussion = 30
+        self.discussion_timer_visible_status = False
 
         # Emergency Icon Timer Custom User Event - USED IN BOTH FREEPLAY & MULTIPLAYER
         # it starts was soon as game starts and decrements time_left_to_end_meeting_cooldown
@@ -711,10 +716,17 @@ class Game:
         # what players do at task stations. Both crew and imposter can
         # answer -- the imposter blends in this way instead of being locked
         # out of every station. station_cooldowns is keyed by station name
-        # -> pygame ticks of the last time it was answered there.
+        # -> pygame ticks at which that station becomes usable again (a
+        # correct answer sets the full STATION_COOLDOWN_MS, a wrong one only
+        # the short WRONG_ANSWER_RETRY_MS, so a miss can be retried quickly).
         self.quiz_bank = QuizBank()
         self.quiz_window = None
         self.station_cooldowns = {}
+        # Live countdown shown on the bottom dialog banner while a
+        # just-answered station is on its short wrong-answer retry lockout
+        # (see resolve_quiz/update_wrong_retry_notice).
+        self.wrong_retry_until = None
+        self.wrong_retry_message = ""
         self.correct_answers = 0
         # match_elapsed/interval/total default here (not just inside
         # runmultiplayer) so nothing crashes if draw() runs before the
@@ -1446,9 +1458,8 @@ class Game:
             return
         if any(item.type == 'vent' for item in pg.sprite.spritecollide(self.player, self.items, False)):
             return
-        last_answered = self.station_cooldowns.get(station_key)
         now_ticks = pygame.time.get_ticks()
-        if last_answered is not None and now_ticks - last_answered < STATION_COOLDOWN_MS:
+        if now_ticks < self.station_cooldowns.get(station_key, 0):
             return
         question = self.quiz_bank.next_question()
         if question is None:
@@ -1466,20 +1477,26 @@ class Game:
             return
         is_correct = self.quiz_window.is_correct
         question_id = self.quiz_window.question["id"]
-        self.station_cooldowns[self.quiz_window.station_key] = pygame.time.get_ticks()
+        now_ticks = pygame.time.get_ticks()
+        retry_ms = STATION_COOLDOWN_MS if is_correct else WRONG_ANSWER_RETRY_MS
+        self.station_cooldowns[self.quiz_window.station_key] = now_ticks + retry_ms
         self.isdoingTask = False
         if is_correct:
             self.missions_done += 1
             self.correct_answers += 1
             self.effect_sounds['task_completed'].play()
             self.show_dialog(SYSTEM_DIALOGS["quiz_correct"])
-        elif self.deduction and not self.player.imposter:
-            # Crew only gets the tracking arrow on a correct answer (see
-            # server.py's 'quiz result' handler) -- call that out
-            # specifically instead of the generic wrong-answer message.
-            self.show_dialog(SYSTEM_DIALOGS["quiz_wrong_crew"])
         else:
-            self.show_dialog(SYSTEM_DIALOGS["quiz_wrong"])
+            # A wrong answer earns nothing (no tracking arrow, no idle-timer
+            # reset -- see server.py's 'quiz result' handler) but only locks
+            # this one station for WRONG_ANSWER_RETRY_MS, so show a live
+            # countdown instead of a generic one-off message -- see
+            # update_wrong_retry_notice(), called every frame from update().
+            if self.deduction and not self.player.imposter:
+                self.wrong_retry_message = SYSTEM_DIALOGS["quiz_wrong_crew"]
+            else:
+                self.wrong_retry_message = SYSTEM_DIALOGS["quiz_wrong"]
+            self.wrong_retry_until = now_ticks + WRONG_ANSWER_RETRY_MS
         if self.gamemode == "Multiplayer":
             try:
                 self.send_frame(self._mp_socket,
@@ -1487,6 +1504,20 @@ class Game:
             except Exception:
                 pass
         self.quiz_window = None
+
+    def update_wrong_retry_notice(self):
+        """Called every frame from update(). Keeps the bottom dialog banner
+        showing a live countdown (refreshing show_dialog's expiry each frame)
+        while the station the player just got wrong is still on its short
+        WRONG_ANSWER_RETRY_MS lockout -- see resolve_quiz()."""
+        if self.wrong_retry_until is None:
+            return
+        remaining_ms = self.wrong_retry_until - pygame.time.get_ticks()
+        if remaining_ms <= 0:
+            self.wrong_retry_until = None
+            return
+        remaining_s = remaining_ms // 1000 + 1
+        self.show_dialog(f"{self.wrong_retry_message} Thử lại sau {remaining_s} giây.", seconds=1.2)
 
     def deduction_overlay_active(self):
         """True while any full-screen overlay covers the top-of-screen HUD
@@ -1505,7 +1536,7 @@ class Game:
         """Up to `count` vents nearest to the player, EXCLUDING the one
         they're currently standing on (which is always the single closest
         entry in self.vent, since you can only call this while colliding
-        with it -- see the Alt-hold check above)."""
+        with it -- see the hide-in-vent check above)."""
         vents_by_distance = sorted(self.vent, key=lambda v: self.player.pos.distance_to(vec(v)))
         return vents_by_distance[1:count + 1]
 
@@ -1548,7 +1579,7 @@ class Game:
         a task instead of wandering until something happens to glow."""
         now_ticks = pygame.time.get_ticks()
         available = [pos for key, _title, pos in STATIONS
-                     if now_ticks - self.station_cooldowns.get(key, -STATION_COOLDOWN_MS - 1) >= STATION_COOLDOWN_MS]
+                     if now_ticks >= self.station_cooldowns.get(key, 0)]
         if not available:
             return
         player_pos = self.player.pos
@@ -2158,7 +2189,8 @@ class Game:
                                 # 30 seconds will be displayed and decremented on voting screen but it does not
                                 # decrements on ghost voting screen, the trick is to decrement meeting_timer_event
                                 # when someone report dead body
-                                self.time_left_to_end_meeting = 30
+                                self.time_left_to_end_meeting = 15 if self.deduction else 30
+                                self.time_left_to_end_discussion = 30
                                 pg.time.set_timer(self.meeting_timer_event, 1000)
                                 self.timer_start = pygame.time.get_ticks()
 
@@ -2234,7 +2266,8 @@ class Game:
                                 # If some player from server starts meeting then show
                                 # meeting timer of 30 seconds on each client connected
                                 # on server and decrement meeting_timer_event
-                                self.time_left_to_end_meeting = 30
+                                self.time_left_to_end_meeting = 15 if self.deduction else 30
+                                self.time_left_to_end_discussion = 30
                                 pg.time.set_timer(self.meeting_timer_event, 1000)
 
                                 # If some player from server starts meeting then hide
@@ -2268,6 +2301,8 @@ class Game:
                                 # 30 seconds will be displayed and decremented on voting screen but it does not
                                 # decrements on ghost voting screen, the trick is to decrement meeting_timer_event
                                 # when someone report dead body
+                                self.time_left_to_end_meeting = 15 if self.deduction else 30
+                                self.time_left_to_end_discussion = 30
                                 pg.time.set_timer(self.meeting_timer_event, 1000)
 
 
@@ -2392,6 +2427,12 @@ class Game:
                         self.invisible_play_count = 1
                         self.ventcooldown_start = pygame.time.get_ticks()
                         self.vent_hide_started = pygame.time.get_ticks()
+                        # Show the picker (up to 3 nearest OTHER vents,
+                        # numbered 1/2/3) the instant the imposter hides --
+                        # no longer needs Alt held, so it's visible the whole
+                        # time they're hidden instead of only while holding
+                        # a key. Confirmed with a number key in events().
+                        self.vent_picker_options = self.nearby_vent_options()
                         # self.invisibility_sound_playing = True
                     elif self.invisible_play_count == 1 and (self.ventcooldown - self.ventcooldown_start) > 500:
                         self.player.image = self.player.player_imgs_down[0]
@@ -2402,24 +2443,7 @@ class Game:
                         self.ventcooldown_start = self.ventcooldown
                         self.vent_hide_started = None
                         self.vent_reentry_cooldown_until = pygame.time.get_ticks() + VENT_REENTRY_COOLDOWN_MS
-
-                if keys[pg.K_LALT] or keys[pg.K_RALT]:
-                    if (
-                            self.ventcooldown - self.ventcooldown_start) > 750 and self.invisible_play_count == 1 and self.player.imposter == True:
-                        # Holding Alt no longer teleports straight to a
-                        # random vent -- it opens a picker (up to 3 nearest
-                        # OTHER vents, numbered 1/2/3) drawn in draw() and
-                        # confirmed with a number key in events(), so the
-                        # imposter controls where they come out instead of
-                        # landing wherever chance puts them.
-                        self.vent_picker_options = self.nearby_vent_options()
-
-        # keys inside the vent hit-loop above is only assigned when actually
-        # colliding with a vent item, so re-fetch key state fresh here
-        # instead of relying on that possibly-undefined loop-local name.
-        alt_held = pg.key.get_pressed()[pg.K_LALT] or pg.key.get_pressed()[pg.K_RALT]
-        if not alt_held:
-            self.vent_picker_options = []
+                        self.vent_picker_options = []
 
         # Auto-eject after VENT_HIDE_DURATION_MS -- checked unconditionally
         # (not just while colliding with a vent) since movement is frozen
@@ -2686,6 +2710,7 @@ class Game:
         self.update_mini_map()
         self.check_state_dialogs()
         self.resolve_quiz()
+        self.update_wrong_retry_notice()
 
     # Change player position
     def update_mini_map(self):
@@ -2698,8 +2723,7 @@ class Game:
             now_ticks = pygame.time.get_ticks()
             for key, _title, pos in STATIONS:
                 mx, my = int(3 * (pos[0] / 15)), int(3 * (pos[1] / 15))
-                last_answered = self.station_cooldowns.get(key)
-                on_cooldown = last_answered is not None and now_ticks - last_answered < STATION_COOLDOWN_MS
+                on_cooldown = now_ticks < self.station_cooldowns.get(key, 0)
                 colour = (140, 140, 140) if on_cooldown else GREEN
                 pg.draw.circle(self.mini_map, colour, (mx, my), 5)
                 pg.draw.circle(self.mini_map, WHITE, (mx, my), 5, 1)
@@ -2850,9 +2874,9 @@ class Game:
 
         """ Vent teleport picker -- both Freeplay and Multiplayer (this is
         the base vent mechanic, not a deduction-mode addition). Up to 3
-        numbered arrows to the nearest OTHER vents while Alt is held hidden
-        in one; press 1/2/3 (events()) to teleport to that specific vent
-        instead of a random one. """
+        numbered arrows to the nearest OTHER vents, shown automatically the
+        whole time the imposter is hidden in one; press 1/2/3 (events()) to
+        teleport to that specific vent instead of a random one. """
         for i, vent_pos in enumerate(self.vent_picker_options):
             self.draw_arrow_around_player(vec(vent_pos), YELLOW, str(i + 1))
 
@@ -2870,19 +2894,26 @@ class Game:
 
         if self.emerg_meeting_button_status:
             self.task_button_click_status = False
+            # Deduction mode gets a full discussion window before voting
+            # opens, then a shorter vote window than Freeplay's classic
+            # Among-Us-style meeting (10s chat + 30s vote, unchanged here).
+            discussion_ms = DISCUSSION_DURATION_MS if self.deduction else 10000
+            vote_ms = VOTE_DURATION_MS_DEDUCTION if self.deduction else 30000
             if self.emergency_meeting_index == 0 and (self.timer - self.timer_start) < 1500:
                 self.screen.blit(self.dim_screen, (0, 0))
                 self.display_meeting_alert()  # this layer is beneath the screen
-            elif self.emergency_meeting_index == 1 and (self.timer - self.timer_start) < 10000:
+            elif self.emergency_meeting_index == 1 and (self.timer - self.timer_start) < discussion_ms:
                 self.screen.blit(self.dim_screen, (0, 0))
                 self.display_chat()  # this layer is beneath the screen
-            elif self.emergency_meeting_index == 2 and (self.timer - self.timer_start) < 30000:
+                self.discussion_timer_visible_status = self.deduction
+            elif self.emergency_meeting_index == 2 and (self.timer - self.timer_start) < vote_ms:
                 self.screen.blit(self.dim_screen, (0, 0))
                 self.display_vote()  # this layer is beneath the screen
 
                 # If voting screen appears then show timer only
                 # however th timer will be running previously when
                 # player calls the meeting
+                self.discussion_timer_visible_status = False
                 self.meeting_timer_visible_status = True
             else:
                 # When player calls and finish meeting for the 1st time code works
@@ -2891,15 +2922,17 @@ class Game:
                 # when player has not called the meeting.So, If player has not called meeting then
                 # hide the meeting timer if it is showing
                 self.meeting_timer_visible_status = False
+                self.discussion_timer_visible_status = False
 
                 self.emergency_meeting_index += 1
                 self.timer_start = pygame.time.get_ticks()
 
-            if (self.timer - self.timer_start) > 30000:
+            if (self.timer - self.timer_start) > max(discussion_ms, vote_ms):
                 # If meeting timer runs out so end the meeting
                 # then reset and hide the meeting timer
-                self.time_left_to_end_meeting = 30
+                self.time_left_to_end_meeting = 15 if self.deduction else 30
                 self.meeting_timer_visible_status = False
+                self.discussion_timer_visible_status = False
                 pg.time.set_timer(self.meeting_timer_event, 0)
 
             if self.emergency_meeting_index > 2:
@@ -2922,19 +2955,27 @@ class Game:
                 self.reset_meeting_votes()
 
         if self.emerg_meeting_report_status:
+            # Same discussion/vote pacing as the button-triggered meeting
+            # above -- deduction mode unifies both trigger paths onto the
+            # same full discussion window, since Freeplay's report meeting
+            # keeps its original near-instant chat + 30s vote.
+            discussion_ms = DISCUSSION_DURATION_MS if self.deduction else 1500
+            vote_ms = VOTE_DURATION_MS_DEDUCTION if self.deduction else 30000
             if self.emergency_meeting_index == 0 and (self.timer - self.timer_start) < 1500:
                 self.screen.blit(self.dim_screen, (0, 0))
                 self.display_meeting_alert_report()  # this layer is beneath the screen
-            elif self.emergency_meeting_index == 1 and (self.timer - self.timer_start) < 1500:
+            elif self.emergency_meeting_index == 1 and (self.timer - self.timer_start) < discussion_ms:
                 self.screen.blit(self.dim_screen, (0, 0))
                 self.display_chat()  # this layer is beneath the screen
-            elif self.emergency_meeting_index == 2 and (self.timer - self.timer_start) < 30000:
+                self.discussion_timer_visible_status = self.deduction
+            elif self.emergency_meeting_index == 2 and (self.timer - self.timer_start) < vote_ms:
                 self.screen.blit(self.dim_screen, (0, 0))
                 self.display_vote()  # this layer is beneath the screen
 
                 # If voting screen appears then show timer only
                 # however th timer will be running previously when
                 # player calls the meeting
+                self.discussion_timer_visible_status = False
                 self.meeting_timer_visible_status = True
 
             else:
@@ -2944,15 +2985,17 @@ class Game:
                 # when player has not called the meeting.So, If player has not called meeting then
                 # hide the meeting timer if it is showing
                 self.meeting_timer_visible_status = False
+                self.discussion_timer_visible_status = False
 
                 self.emergency_meeting_index += 1
                 self.timer_start = pygame.time.get_ticks()
 
-            if (self.timer - self.timer_start) > 30000:
+            if (self.timer - self.timer_start) > max(discussion_ms, vote_ms):
                 # If meeting timer runs out so end the meeting
                 # then reset and hide the meeting timer
-                self.time_left_to_end_meeting = 30
+                self.time_left_to_end_meeting = 15 if self.deduction else 30
                 self.meeting_timer_visible_status = False
+                self.discussion_timer_visible_status = False
                 pg.time.set_timer(self.meeting_timer_event, 0)
 
             if self.emergency_meeting_index > 2:
@@ -3015,7 +3058,8 @@ class Game:
                         # Each time a player calls a meeting a 30 second timer
                         # will be displayed and meeting_timer_event is decremented
                         # each second
-                        self.time_left_to_end_meeting = 30
+                        self.time_left_to_end_meeting = 15 if self.deduction else 30
+                        self.time_left_to_end_discussion = 30
                         pg.time.set_timer(self.meeting_timer_event, 1000)
 
                         self.timer_start = pygame.time.get_ticks()
@@ -3565,6 +3609,12 @@ class Game:
         # If emergency meeting is called then show this timer on voting screen
         if self.meeting_timer_event and self.time_left_to_end_meeting !=0 and self.meeting_timer_visible_status:
             self.screen.blit(self.board.draw_meeting_timer_text(self.time_left_to_end_meeting, WHITE, 18), (WIDTH/2 + 50, HEIGHT-180))
+
+        # Deduction mode only: countdown for the discussion window before
+        # voting opens (same slot as the vote timer above -- the two never
+        # show at once since they belong to different meeting phases).
+        if self.meeting_timer_event and self.time_left_to_end_discussion != 0 and self.discussion_timer_visible_status:
+            self.screen.blit(self.board.draw_discussion_timer_text(self.time_left_to_end_discussion, WHITE, 18), (WIDTH/2 + 50, HEIGHT-180))
         
         # ---------------------------------------------------------------------------
         
@@ -3842,6 +3892,11 @@ class Game:
                 if self.time_left_to_end_meeting == 0:
                     pygame.time.set_timer(self.meeting_timer_event, 0)
 
+            # Deduction mode's discussion-phase countdown, ticking on the
+            # same 1Hz event as the vote countdown above.
+            if event.type == self.meeting_timer_event and self.discussion_timer_visible_status:
+                self.time_left_to_end_discussion -= 1
+
             # This is a custom user event for emergency meeting timer cooldown
             if event.type == self.meeting_timer_cooldown_event and self.meeting_timer_cooldown_visible_status:
                 self.time_left_to_end_meeting_cooldown -= 1
@@ -3866,9 +3921,10 @@ class Game:
                     self.help_overlay_open = not self.help_overlay_open
                     self.isdoingTask = self.help_overlay_open
                 # Vent teleport picker confirm -- 1/2/3 selects the
-                # correspondingly-numbered arrow shown while Alt is held
-                # hidden in a vent (self.vent_picker_options, see update()
-                # and draw_vent_picker()). Still gated by the same 750ms
+                # correspondingly-numbered arrow shown automatically the
+                # whole time the imposter is hidden in a vent
+                # (self.vent_picker_options, see update() and
+                # draw_vent_picker()). Still gated by the same 750ms
                 # cooldown as the old random-teleport version.
                 if (not self.paused and self.player.imposter and self.invisible_play_count == 1
                         and self.vent_picker_options

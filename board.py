@@ -412,6 +412,11 @@ class Board:
         text_surface = timer_font.render("Biểu quyết kết thúc sau: {} ".format(left), True, text_color)
         return text_surface
 
+    def draw_discussion_timer_text(self, left: int, text_color, text_size):
+        timer_font = vn_font(text_size)
+        text_surface = timer_font.render("Thảo luận kết thúc sau: {} ".format(left), True, text_color)
+        return text_surface
+
     @staticmethod
     def wrap_text_lines(text, font, max_width):
         lines = []

@@ -1,425 +1,425 @@
 {
-  "version": 1,
+  "version": 2,
   "questions": [
     {
       "id": "q001",
-      "text": "Minh bạch thông tin trong quản lý công có nghĩa là gì?",
+      "text": "Bản chất của nền dân chủ xã hội chủ nghĩa ở Việt Nam là gì?",
       "options": [
-        "Giữ bí mật mọi quyết định để tránh tranh cãi",
-        "Chỉ công bố thông tin khi có yêu cầu bằng văn bản",
-        "Chỉ báo cáo nội bộ trong ban lãnh đạo",
-        "Công khai đầy đủ, kịp thời thông tin cho người có quyền giám sát"
+        "Mọi quyền lực đều thuộc về nhân dân, dân là chủ, dân làm chủ",
+        "Quyền lực tập trung vào một cơ quan duy nhất",
+        "Chỉ một nhóm người mới có quyền quyết định mọi việc",
+        "Nhân dân chỉ được biết thông tin sau khi quyết định đã ban hành"
       ],
-      "answer": 3,
-      "topic": "minh bạch"
+      "answer": 0,
+      "topic": "dân chủ xã hội chủ nghĩa"
     },
     {
       "id": "q002",
-      "text": "Hành vi nào sau đây được xem là dấu hiệu tham nhũng?",
+      "text": "Câu nói \"Nước ta là nước dân chủ... quyền hành và lực lượng đều ở nơi dân\" là của ai?",
       "options": [
-        "Báo cáo trung thực kết quả kiểm toán",
-        "Công khai tài sản theo quy định",
-        "Nhận quà giá trị lớn để đổi lấy quyết định có lợi cho người tặng",
-        "Từ chối nhận quà từ đối tác"
+        "Nguyễn Trãi",
+        "Hồ Chí Minh",
+        "Lê Lợi",
+        "Trần Hưng Đạo"
       ],
-      "answer": 2,
-      "topic": "nhận diện hành vi"
+      "answer": 1,
+      "topic": "dân chủ xã hội chủ nghĩa"
     },
     {
       "id": "q003",
-      "text": "Cơ chế kiểm soát quyền lực hiệu quả nhất dựa trên nguyên tắc nào?",
+      "text": "Đại hội nào của Đảng (năm 1986) đề ra đường lối đổi mới toàn diện đất nước?",
       "options": [
-        "Tập trung toàn bộ quyền quyết định vào một cá nhân",
-        "Hạn chế người ngoài tiếp cận thông tin",
-        "Không cần ghi chép lại quyết định",
-        "Phân quyền và giám sát chéo giữa các bộ phận"
+        "Đại hội IV",
+        "Đại hội V",
+        "Đại hội VI",
+        "Đại hội VII"
       ],
-      "answer": 3,
-      "topic": "kiểm soát quyền lực"
+      "answer": 2,
+      "topic": "dân chủ xã hội chủ nghĩa"
     },
     {
       "id": "q004",
-      "text": "Khi phát hiện hồ sơ bị chỉnh sửa sai lệch, bước đầu tiên nên làm là gì?",
+      "text": "Dân chủ xã hội chủ nghĩa ở Việt Nam được thực hiện qua những hình thức nào?",
       "options": [
-        "Tự ý sửa lại cho đúng rồi không nói với ai",
-        "Xóa bỏ hồ sơ để tránh rắc rối",
-        "Lưu lại bằng chứng và báo cáo cho bộ phận có thẩm quyền",
-        "Bỏ qua vì không phải việc của mình"
+        "Chỉ có dân chủ trực tiếp",
+        "Chỉ có dân chủ gián tiếp",
+        "Không có hình thức cụ thể",
+        "Dân chủ gián tiếp và dân chủ trực tiếp"
       ],
-      "answer": 2,
-      "topic": "xử lý hồ sơ"
+      "answer": 3,
+      "topic": "dân chủ xã hội chủ nghĩa"
     },
     {
       "id": "q005",
-      "text": "Một cổng thông tin công khai minh bạch nên đáp ứng điều gì?",
+      "text": "Cơ quan nào là cơ quan quyền lực nhà nước cao nhất, do nhân dân bầu ra?",
       "options": [
-        "Chỉ hiển thị số liệu có lợi cho tổ chức",
-        "Yêu cầu mật khẩu bí mật mới xem được",
-        "Xóa dữ liệu cũ sau mỗi quý",
-        "Dữ liệu được cập nhật, dễ tra cứu và đúng sự thật"
+        "Quốc hội",
+        "Chính phủ",
+        "Tòa án nhân dân tối cao",
+        "Mặt trận Tổ quốc"
       ],
-      "answer": 3,
-      "topic": "công khai"
+      "answer": 0,
+      "topic": "dân chủ xã hội chủ nghĩa"
     },
     {
       "id": "q006",
-      "text": "Quy trình xử lý tố cáo đúng chuẩn cần đảm bảo điều gì cho người tố cáo?",
+      "text": "Phương châm thể hiện dân chủ ở cơ sở tại Việt Nam là gì?",
       "options": [
-        "Công khai danh tính để tăng minh bạch",
-        "Chuyển thẳng cho người bị tố cáo xử lý",
-        "Không cần xác minh thông tin tố cáo",
-        "Bảo mật danh tính và không bị trả thù"
+        "Trên bảo dưới nghe",
+        "Dân biết, dân bàn, dân làm, dân kiểm tra",
+        "Im lặng là vàng",
+        "Việc ai nấy làm"
       ],
-      "answer": 3,
-      "topic": "xử lý tố cáo"
+      "answer": 1,
+      "topic": "dân chủ xã hội chủ nghĩa"
     },
     {
       "id": "q007",
-      "text": "Kiểm toán nội bộ có vai trò chính là gì?",
+      "text": "Theo Hiến pháp, quyền lực nhà nước ở Việt Nam có đặc điểm gì?",
       "options": [
-        "Che giấu sai sót để giữ hình ảnh tổ chức",
-        "Chỉ ký xác nhận theo yêu cầu của lãnh đạo",
-        "Đánh giá độc lập tính trung thực của báo cáo tài chính",
-        "Không cần độc lập với bộ phận được kiểm tra"
+        "Tập trung tuyệt đối vào một cá nhân",
+        "Do các tập đoàn kinh tế quyết định",
+        "Thống nhất, có sự phân công, phối hợp và kiểm soát giữa các cơ quan nhà nước",
+        "Chia tách hoàn toàn giữa ba nhánh quyền lực, không phối hợp"
       ],
       "answer": 2,
-      "topic": "kiểm toán"
+      "topic": "nhà nước pháp quyền"
     },
     {
       "id": "q008",
-      "text": "Đâu là biểu hiện của lợi ích nhóm trong ra quyết định?",
+      "text": "Đặc điểm nào sau đây KHÔNG phải của Nhà nước pháp quyền xã hội chủ nghĩa Việt Nam?",
       "options": [
-        "Áp dụng quy định như nhau cho mọi đối tượng",
-        "Mời nhiều bên tham gia phản biện",
-        "Ưu tiên lợi ích của một nhóm nhỏ thay vì lợi ích chung",
-        "Công bố tiêu chí xét duyệt rõ ràng"
+        "Nhà nước của dân, do dân, vì dân",
+        "Tổ chức và hoạt động dựa trên Hiến pháp và pháp luật",
+        "Do Đảng Cộng sản Việt Nam lãnh đạo",
+        "Đặt lợi ích của một nhóm nhỏ lên trên lợi ích nhân dân"
       ],
-      "answer": 2,
-      "topic": "nhận diện hành vi"
+      "answer": 3,
+      "topic": "nhà nước pháp quyền"
     },
     {
       "id": "q009",
-      "text": "Việc kê khai tài sản, thu nhập của cán bộ nhằm mục đích gì?",
+      "text": "Mục tiêu tổng quát của cách mạng Việt Nam là gì?",
       "options": [
-        "Giúp giám sát biến động tài sản bất thường",
-        "Không có tác dụng thực tế",
-        "Chỉ để lưu trữ hồ sơ hành chính",
-        "Chỉ áp dụng khi có nghi ngờ"
+        "Dân giàu, nước mạnh, dân chủ, công bằng, văn minh",
+        "Chỉ tập trung phát triển kinh tế, bỏ qua công bằng xã hội",
+        "Ưu tiên lợi ích của một nhóm người trong xã hội",
+        "Không đặt ra mục tiêu cụ thể"
       ],
       "answer": 0,
-      "topic": "kê khai tài sản"
+      "topic": "dân chủ xã hội chủ nghĩa"
     },
     {
       "id": "q010",
-      "text": "Khi hai nguồn thông tin về cùng một sự việc mâu thuẫn nhau, nên làm gì?",
+      "text": "Nhà nước pháp quyền là nhà nước như thế nào?",
       "options": [
-        "Bỏ qua cả hai nguồn",
-        "Chọn nguồn có lợi hơn cho bản thân",
-        "Đối chiếu thêm bằng chứng trước khi kết luận",
-        "Tin ngay vào nguồn đến trước"
+        "Nhà nước đứng trên pháp luật",
+        "Nhà nước thượng tôn pháp luật, hướng tới phúc lợi cho mọi người",
+        "Nhà nước không cần Hiến pháp",
+        "Nhà nước do một cá nhân toàn quyền quyết định"
       ],
-      "answer": 2,
-      "topic": "suy luận bằng chứng"
+      "answer": 1,
+      "topic": "nhà nước pháp quyền"
     },
     {
       "id": "q011",
-      "text": "Giám sát chéo giữa các phòng ban giúp ích gì?",
+      "text": "Theo Luật Phòng, chống tham nhũng năm 2005, tham nhũng được hiểu là gì?",
       "options": [
-        "Gây mất đoàn kết nội bộ",
-        "Làm chậm mọi quy trình không cần thiết",
-        "Chỉ tăng thêm giấy tờ hành chính",
-        "Phát hiện sớm sai phạm và giảm rủi ro lạm quyền"
+        "Bất kỳ hành vi trộm cắp tài sản nào",
+        "Hành vi vi phạm giao thông",
+        "Hành vi của người có chức vụ, quyền hạn đã lợi dụng chức vụ, quyền hạn đó vì vụ lợi",
+        "Hành vi trốn thuế của doanh nghiệp tư nhân"
       ],
-      "answer": 3,
-      "topic": "kiểm soát quyền lực"
+      "answer": 2,
+      "topic": "khái niệm tham nhũng"
     },
     {
       "id": "q012",
-      "text": "Một quyết định chi tiêu công cần được công khai vào thời điểm nào là hợp lý nhất?",
+      "text": "Theo Ngân hàng Thế giới (World Bank), tham nhũng là gì?",
       "options": [
-        "Không cần công khai nếu số tiền nhỏ",
-        "Sau khi dự án đã hoàn thành nhiều năm",
-        "Chỉ khi có báo chí hỏi đến",
-        "Ngay sau khi quyết định được phê duyệt"
+        "Sự cạnh tranh không lành mạnh giữa doanh nghiệp",
+        "Việc chậm nộp thuế",
+        "Hành vi vi phạm hợp đồng dân sự",
+        "Sự lạm dụng quyền lực công nhằm lợi ích cá nhân"
       ],
       "answer": 3,
-      "topic": "công khai"
+      "topic": "khái niệm tham nhũng"
     },
     {
       "id": "q013",
-      "text": "Đâu KHÔNG phải là nguyên tắc phòng chống tham nhũng?",
+      "text": "Chủ thể của hành vi tham nhũng bắt buộc phải là ai?",
       "options": [
-        "Sự tham gia giám sát của cộng đồng",
-        "Công khai, minh bạch",
-        "Giữ kín mọi quyết định nội bộ với toàn bộ nhân viên",
-        "Trách nhiệm giải trình"
+        "Người có chức vụ, quyền hạn",
+        "Bất kỳ công dân nào",
+        "Chỉ doanh nghiệp tư nhân",
+        "Chỉ người nước ngoài"
       ],
-      "answer": 2,
-      "topic": "nguyên tắc chung"
+      "answer": 0,
+      "topic": "đặc điểm tham nhũng"
     },
     {
       "id": "q014",
-      "text": "Trách nhiệm giải trình (accountability) nghĩa là gì?",
+      "text": "Động cơ của hành vi tham nhũng là gì?",
       "options": [
-        "Không ai phải chịu trách nhiệm cá nhân",
-        "Chỉ áp dụng cho nhân viên cấp thấp",
-        "Chỉ cần báo cáo cho cấp trên trực tiếp",
-        "Người ra quyết định phải chịu trách nhiệm và giải thích được quyết định của mình"
+        "Vì lợi ích chung của tập thể",
+        "Vì vụ lợi, mưu cầu lợi ích riêng",
+        "Vì muốn giúp đỡ người khác",
+        "Vì tuân thủ đúng quy định"
       ],
-      "answer": 3,
-      "topic": "trách nhiệm giải trình"
+      "answer": 1,
+      "topic": "đặc điểm tham nhũng"
     },
     {
       "id": "q015",
-      "text": "Khi phát hiện một khoản chi bất thường không có hóa đơn hợp lệ, hành động đúng là gì?",
+      "text": "Ai đã ký ban hành Sắc lệnh số 223 (27/11/1946) trừng trị các tội đưa, nhận hối lộ và biển thủ công quỹ?",
       "options": [
-        "Ghi nhận và yêu cầu giải trình trước khi phê duyệt",
-        "Tự động phê duyệt vì tin tưởng đồng nghiệp",
-        "Chuyển tiền trước rồi tính sau",
-        "Xóa khoản chi khỏi sổ sách"
+        "Vua Gia Long",
+        "Vua Lê Thánh Tông",
+        "Chủ tịch Hồ Chí Minh",
+        "Tổng Bí thư Lê Duẩn"
       ],
-      "answer": 0,
-      "topic": "xử lý hồ sơ"
+      "answer": 2,
+      "topic": "khái niệm tham nhũng"
     },
     {
       "id": "q016",
-      "text": "Một hệ thống giám sát tốt cần có đặc điểm nào?",
+      "text": "Luật Phòng, chống tham nhũng năm 2005 quy định bao nhiêu hành vi tham nhũng?",
       "options": [
-        "Không cần cập nhật định kỳ",
-        "Ghi lại nhật ký thao tác để có thể truy vết",
-        "Chỉ một người có toàn quyền truy cập",
-        "Cho phép xóa dữ liệu không cần xác nhận"
+        "7 hành vi",
+        "11 hành vi",
+        "20 hành vi",
+        "12 hành vi"
       ],
-      "answer": 1,
-      "topic": "kiểm soát quyền lực"
+      "answer": 3,
+      "topic": "hành vi tham nhũng"
     },
     {
       "id": "q017",
-      "text": "Người dân có vai trò gì trong phòng chống tham nhũng?",
+      "text": "Hành vi nào sau đây được liệt kê là một trong các hành vi tham nhũng theo luật?",
       "options": [
-        "Không có vai trò gì",
-        "Chỉ được biết thông tin sau 10 năm",
-        "Chỉ chờ cơ quan nhà nước tự xử lý",
-        "Giám sát và phản ánh những dấu hiệu bất thường"
+        "Tham ô tài sản",
+        "Từ chối nhận quà biếu",
+        "Báo cáo trung thực kết quả công tác",
+        "Công khai minh bạch tài sản cá nhân"
       ],
-      "answer": 3,
-      "topic": "giám sát cộng đồng"
+      "answer": 0,
+      "topic": "hành vi tham nhũng"
     },
     {
       "id": "q018",
-      "text": "Đâu là dấu hiệu của một quy trình đấu thầu thiếu minh bạch?",
+      "text": "\"Nhũng nhiễu vì vụ lợi\" được hiểu là hành vi như thế nào?",
       "options": [
-        "Công bố tiêu chí trước khi mời thầu",
-        "Biên bản chấm thầu được lưu trữ đầy đủ",
-        "Tiêu chí chấm thầu thay đổi sau khi đã nhận hồ sơ dự thầu",
-        "Có nhiều nhà thầu độc lập tham gia"
+        "Hỗ trợ người dân hoàn thành thủ tục nhanh chóng",
+        "Gây khó khăn, yêu sách tiền bạc, của cải với người khác để hưởng lợi bất chính",
+        "Công khai quy trình xử lý hồ sơ",
+        "Từ chối nhận hối lộ"
       ],
-      "answer": 2,
-      "topic": "nhận diện hành vi"
+      "answer": 1,
+      "topic": "hành vi tham nhũng"
     },
     {
       "id": "q019",
-      "text": "Vì sao cần bảo vệ người tố cáo tham nhũng?",
+      "text": "Bộ luật Hình sự năm 1999 quy định các tội phạm về tham nhũng nằm ở đâu?",
       "options": [
-        "Không liên quan đến hiệu quả phòng chống tham nhũng",
-        "Chỉ để làm hình thức",
-        "Vì luật yêu cầu nhưng không thực sự cần thiết",
-        "Để khuyến khích phát hiện sai phạm mà không sợ bị trả thù"
+        "Chương về tội xâm phạm tính mạng",
+        "Chương I",
+        "Mục A, Chương XXI",
+        "Không được quy định trong Bộ luật Hình sự"
       ],
-      "answer": 3,
-      "topic": "xử lý tố cáo"
+      "answer": 2,
+      "topic": "hành vi tham nhũng"
     },
     {
       "id": "q020",
-      "text": "Một báo cáo tài chính trung thực cần phản ánh điều gì?",
+      "text": "Công ước Liên Hợp Quốc về chống tham nhũng (UNCAC) được Việt Nam phê chuẩn vào năm nào?",
       "options": [
-        "Đúng thực trạng thu chi, không tô hồng hay che giấu",
-        "Chỉ những số liệu có lợi cho tổ chức",
-        "Số liệu do lãnh đạo yêu cầu ghi",
-        "Không cần đối chiếu với chứng từ gốc"
+        "1998",
+        "2005",
+        "2013",
+        "2009"
       ],
-      "answer": 0,
-      "topic": "kiểm toán"
+      "answer": 3,
+      "topic": "khái niệm tham nhũng"
     },
     {
       "id": "q021",
-      "text": "Khi một cán bộ liên tục từ chối tham gia các nhiệm vụ giám sát công khai, điều này có thể là dấu hiệu gì?",
+      "text": "Một trong những nguyên nhân của tham nhũng là gì?",
       "options": [
-        "Có thể đang né tránh trách nhiệm hoặc che giấu điều gì đó",
-        "Không có ý nghĩa gì đặc biệt",
-        "Là hành vi được khuyến khích",
-        "Chắc chắn là người liêm chính nhất"
+        "Hệ thống chính sách, pháp luật còn thiếu đồng bộ, nhiều sơ hở",
+        "Người dân quá tích cực giám sát",
+        "Cán bộ, công chức được đãi ngộ quá cao",
+        "Pháp luật quá nghiêm khắc"
       ],
       "answer": 0,
-      "topic": "nhận diện hành vi"
+      "topic": "nguyên nhân tham nhũng"
     },
     {
       "id": "q022",
-      "text": "Bằng chứng đáng tin cậy nhất khi điều tra một nghi vấn sai phạm là gì?",
+      "text": "Hạn chế nào sau đây tạo điều kiện cho tham nhũng gia tăng?",
       "options": [
-        "Dữ liệu, chứng từ có thể kiểm chứng độc lập",
-        "Ý kiến số đông mà không có căn cứ",
-        "Cảm giác cá nhân về ai đó",
-        "Lời đồn từ một người giấu tên"
+        "Công khai, minh bạch trong quản lý tài sản công",
+        "Thiếu công khai, minh bạch trong các cơ chế quản lý kinh tế",
+        "Tăng cường thanh tra, kiểm toán thường xuyên",
+        "Có cơ chế bảo vệ người tố cáo hiệu quả"
       ],
-      "answer": 0,
-      "topic": "suy luận bằng chứng"
+      "answer": 1,
+      "topic": "nguyên nhân tham nhũng"
     },
     {
       "id": "q023",
-      "text": "Quy tắc ứng xử (code of conduct) trong tổ chức công có tác dụng gì?",
+      "text": "Tham nhũng gây tác hại gì đối với chính trị?",
       "options": [
-        "Chỉ là văn bản mang tính hình thức",
-        "Không cần thiết nếu tổ chức nhỏ",
-        "Áp dụng khác nhau tùy theo chức vụ",
-        "Đặt ra chuẩn mực hành vi rõ ràng để phòng ngừa sai phạm"
+        "Không có ảnh hưởng gì đến xã hội",
+        "Giúp bộ máy nhà nước hoạt động hiệu quả hơn",
+        "Làm giảm sút lòng tin của nhân dân vào Đảng và Nhà nước",
+        "Tăng cường đoàn kết dân tộc"
       ],
-      "answer": 3,
-      "topic": "nguyên tắc chung"
+      "answer": 2,
+      "topic": "tác hại tham nhũng"
     },
     {
       "id": "q024",
-      "text": "Đâu là ví dụ về xung đột lợi ích cần công khai?",
+      "text": "Tham nhũng gây tác hại gì về kinh tế?",
       "options": [
-        "Cán bộ báo cáo minh bạch mọi giao dịch",
-        "Cán bộ không có quan hệ gì với các bên liên quan",
-        "Cán bộ phê duyệt hợp đồng cho công ty của người thân",
-        "Cán bộ từ chối tham gia vì có quan hệ liên quan"
+        "Tăng nguồn thu ngân sách nhà nước",
+        "Giúp doanh nghiệp phát triển bền vững hơn",
+        "Không ảnh hưởng đến môi trường kinh doanh",
+        "Làm thất thoát tài sản nhà nước, giảm năng lực cạnh tranh của nền kinh tế"
       ],
-      "answer": 2,
-      "topic": "nhận diện hành vi"
+      "answer": 3,
+      "topic": "tác hại tham nhũng"
     },
     {
       "id": "q025",
-      "text": "Việc lưu trữ chứng từ gốc trong ít nhất một khoảng thời gian quy định nhằm mục đích gì?",
+      "text": "Theo đánh giá của UNODC và Ngân hàng Thế giới, tham nhũng gây thiệt hại cho các nước đang phát triển khoảng bao nhiêu mỗi năm?",
       "options": [
-        "Không có tác dụng thực tế",
-        "Phục vụ đối chiếu, kiểm tra khi cần thiết",
-        "Chỉ để chiếm diện tích lưu trữ",
-        "Chỉ cần giữ bản sao không có giá trị pháp lý"
+        "1,6 nghìn tỷ USD",
+        "100 triệu USD",
+        "10 tỷ USD",
+        "500 triệu USD"
       ],
-      "answer": 1,
-      "topic": "xử lý hồ sơ"
+      "answer": 0,
+      "topic": "tác hại tham nhũng"
     },
     {
       "id": "q026",
-      "text": "Một trong những nguyên nhân phổ biến khiến tham nhũng có cơ hội xảy ra là gì?",
+      "text": "Tham nhũng gây tác hại gì về mặt xã hội?",
       "options": [
-        "Có quá nhiều lớp giám sát chồng chéo",
-        "Có cơ chế luân chuyển cán bộ định kỳ",
-        "Thiếu giám sát và quyền lực không được kiểm soát",
-        "Thông tin được công khai đầy đủ"
+        "Củng cố các giá trị đạo đức truyền thống",
+        "Làm xuống cấp đạo đức của một bộ phận cán bộ, đảng viên",
+        "Không ảnh hưởng đến niềm tin của nhân dân",
+        "Giúp trật tự xã hội ổn định hơn"
       ],
-      "answer": 2,
-      "topic": "kiểm soát quyền lực"
+      "answer": 1,
+      "topic": "tác hại tham nhũng"
     },
     {
       "id": "q027",
-      "text": "Khi tiếp nhận một tố cáo nặc danh nhưng có kèm bằng chứng cụ thể, nên xử lý thế nào?",
+      "text": "Một trong những hạn chế trong phát hiện, xử lý tham nhũng ở Việt Nam hiện nay là gì?",
       "options": [
-        "Công khai nội dung tố cáo trước khi xác minh",
-        "Chuyển thẳng cho người bị tố cáo xử lý",
-        "Bỏ qua ngay vì không rõ danh tính người tố cáo",
-        "Vẫn xác minh nội dung dựa trên bằng chứng đính kèm"
+        "Quá nhiều người tố cáo tham nhũng",
+        "Cơ quan thanh tra hoạt động hoàn toàn độc lập",
+        "Cơ chế khuyến khích tố giác hành vi tham nhũng còn hạn chế",
+        "Việc xử lý các vụ án tham nhũng luôn nhanh chóng, dứt điểm"
       ],
-      "answer": 3,
-      "topic": "xử lý tố cáo"
+      "answer": 2,
+      "topic": "nguyên nhân tham nhũng"
     },
     {
       "id": "q028",
-      "text": "Đấu thầu công khai, cạnh tranh giúp ích gì cho phòng chống tham nhũng?",
+      "text": "Phòng, chống tham nhũng có ý nghĩa như thế nào đối với chế độ xã hội chủ nghĩa?",
       "options": [
-        "Làm quy trình chậm hơn không cần thiết",
-        "Chỉ có lợi cho nhà thầu quen thuộc",
-        "Giảm khả năng thông đồng, nâng cao tính minh bạch",
-        "Không có tác dụng gì đáng kể"
+        "Làm suy yếu vai trò lãnh đạo của Đảng",
+        "Không có ý nghĩa gì đặc biệt",
+        "Chỉ có lợi cho một nhóm nhỏ cán bộ",
+        "Góp phần bảo vệ chế độ, xây dựng Nhà nước pháp quyền"
       ],
-      "answer": 2,
-      "topic": "công khai"
+      "answer": 3,
+      "topic": "ý nghĩa phòng chống tham nhũng"
     },
     {
       "id": "q029",
-      "text": "Người quản lý nên phản ứng thế nào khi nhân viên phát hiện và báo cáo sai phạm?",
+      "text": "Hồ Chí Minh từng ví tham ô, lãng phí, quan liêu là gì?",
       "options": [
-        "Yêu cầu giữ im lặng tuyệt đối",
-        "Phớt lờ để tránh rắc rối",
-        "Ghi nhận, xác minh và bảo vệ người báo cáo",
-        "Kỷ luật người báo cáo vì gây mất hình ảnh"
+        "\"Giặc ở trong lòng\"",
+        "Thành tựu của chế độ mới",
+        "Biểu hiện của lòng yêu nước",
+        "Điều tất yếu không thể tránh khỏi"
       ],
-      "answer": 2,
-      "topic": "xử lý tố cáo"
+      "answer": 0,
+      "topic": "ý nghĩa phòng chống tham nhũng"
     },
     {
       "id": "q030",
-      "text": "Chỉ số nào thường được dùng để đo lường cảm nhận về tham nhũng trong khu vực công?",
+      "text": "Phòng, chống tham nhũng góp phần vào điều gì đối với kinh tế đất nước?",
       "options": [
-        "Chỉ số cảm nhận tham nhũng (CPI)",
-        "Chỉ số giá tiêu dùng (CPI - consumer price index)",
-        "Chỉ số tăng trưởng GDP",
-        "Chỉ số hài lòng khách hàng"
+        "Làm chậm tốc độ tăng trưởng kinh tế",
+        "Tăng trưởng kinh tế đất nước, nâng cao đời sống nhân dân",
+        "Không liên quan đến phát triển kinh tế",
+        "Chỉ có lợi cho nhà đầu tư nước ngoài"
       ],
-      "answer": 0,
-      "topic": "kiến thức chung"
+      "answer": 1,
+      "topic": "ý nghĩa phòng chống tham nhũng"
     },
     {
       "id": "q031",
-      "text": "Một hợp đồng được ký mà không qua thẩm định, phê duyệt đúng quy trình có rủi ro gì?",
+      "text": "Theo Điều 6 Luật Phòng, chống tham nhũng, công dân có trách nhiệm gì?",
       "options": [
-        "Không ảnh hưởng đến tính minh bạch",
-        "Có thể che giấu điều khoản bất lợi hoặc trục lợi cá nhân",
-        "Giúp tiết kiệm thời gian mà không có rủi ro",
-        "Luôn luôn có lợi cho tổ chức"
+        "Không cần quan tâm đến vấn đề tham nhũng",
+        "Chỉ cơ quan nhà nước mới có trách nhiệm phòng, chống tham nhũng",
+        "Chấp hành nghiêm chỉnh pháp luật về phòng, chống tham nhũng",
+        "Che giấu hành vi tham nhũng của người thân"
       ],
-      "answer": 1,
-      "topic": "xử lý hồ sơ"
+      "answer": 2,
+      "topic": "trách nhiệm công dân"
     },
     {
       "id": "q032",
-      "text": "Vì sao luân chuyển vị trí công tác định kỳ được xem là một biện pháp phòng ngừa tham nhũng?",
+      "text": "Công dân phát hiện hành vi tham nhũng thì có quyền và nghĩa vụ gì?",
       "options": [
-        "Hạn chế hình thành mối quan hệ lợi ích lâu dài ở một vị trí",
-        "Chỉ nhằm mục đích đào tạo nhân sự",
-        "Không liên quan đến kiểm soát quyền lực",
-        "Giúp một người nắm toàn quyền lâu dài"
+        "Im lặng để tránh phiền phức",
+        "Tự ý xử lý người vi phạm",
+        "Yêu cầu tiền chuộc từ người vi phạm",
+        "Tố cáo hành vi tham nhũng với cơ quan, tổ chức, cá nhân có thẩm quyền"
       ],
-      "answer": 0,
-      "topic": "kiểm soát quyền lực"
+      "answer": 3,
+      "topic": "trách nhiệm công dân"
     },
     {
       "id": "q033",
-      "text": "Đâu là dấu hiệu cho thấy một hệ thống công khai minh bạch đang hoạt động hiệu quả?",
+      "text": "Khi tố cáo hành vi tham nhũng, công dân có quyền gì để được bảo đảm an toàn?",
       "options": [
-        "Công chúng dễ dàng tra cứu và đối chiếu thông tin được công bố",
-        "Thông tin chỉ được công bố nội bộ",
-        "Không ai quan tâm đến dữ liệu công khai",
-        "Dữ liệu công khai thường xuyên sai lệch"
+        "Được giữ bí mật danh tính, thông tin tố cáo",
+        "Bắt buộc phải công khai danh tính",
+        "Không được pháp luật bảo vệ",
+        "Phải tự chịu mọi rủi ro một mình"
       ],
       "answer": 0,
-      "topic": "công khai"
+      "topic": "trách nhiệm công dân"
     },
     {
       "id": "q034",
-      "text": "Khi hai bằng chứng về vị trí của một người trong cùng khung giờ lại chỉ ra hai địa điểm khác nhau, điều này gợi ý điều gì?",
+      "text": "Trách nhiệm của công dân trong phòng, chống tham nhũng còn bao gồm việc gì?",
       "options": [
-        "Cả hai chắc chắn đều đúng",
-        "Nên tin vào bằng chứng xuất hiện sau",
-        "Ít nhất một trong hai bằng chứng có thể là giả hoặc sai lệch",
-        "Không cần quan tâm vì không quan trọng"
+        "Từ chối cung cấp thông tin khi được yêu cầu",
+        "Hợp tác với cơ quan có thẩm quyền trong việc xác minh, xử lý hành vi tham nhũng",
+        "Bao che cho người vi phạm nếu là người quen",
+        "Không tham gia góp ý xây dựng pháp luật"
       ],
-      "answer": 2,
-      "topic": "suy luận bằng chứng"
+      "answer": 1,
+      "topic": "trách nhiệm công dân"
     },
     {
       "id": "q035",
-      "text": "Nguyên tắc \"bốn mắt\" (four-eyes principle) trong phê duyệt tài chính nghĩa là gì?",
+      "text": "Việc phòng, chống tham nhũng ở Việt Nam là trách nhiệm của ai?",
       "options": [
-        "Chỉ cần một người ký duyệt là đủ",
-        "Không cần ai kiểm tra lại quyết định đã đưa ra",
-        "Mọi giao dịch quan trọng cần ít nhất hai người độc lập kiểm tra, phê duyệt",
-        "Chỉ áp dụng cho giao dịch giá trị nhỏ"
+        "Chỉ của cơ quan công an",
+        "Chỉ của lãnh đạo cấp cao",
+        "Của toàn Đảng, toàn dân và mọi công dân",
+        "Không phải trách nhiệm của người dân bình thường"
       ],
       "answer": 2,
-      "topic": "kiểm soát quyền lực"
+      "topic": "trách nhiệm công dân"
     }
   ]
 }
