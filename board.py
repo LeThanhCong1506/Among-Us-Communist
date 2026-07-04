@@ -357,7 +357,8 @@ class Board:
         self.surface.blit(self.intro_credits, (0, 0), (0, 0, self.width, self.height))
         pos_y = self.height * 0.45
         for name in self.CREDIT_NAMES:
-            self.draw_text(self.surface, name, self.width / 2, pos_y, self.bonus_font)
+            text = self.bonus_font.render(name, True, BLACK)
+            self.surface.blit(text, text.get_rect(center=(self.width / 2, pos_y)))
             pos_y += self.height * 0.1
         self.draw_return_button()
         pg.display.update()
