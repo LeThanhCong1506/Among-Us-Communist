@@ -767,6 +767,8 @@ class Game:
         # before the first draw() call each frame -- default it too so a
         # click on the very first frame can't crash before draw() ever ran.
         self.map_btn = None
+        # Same reasoning as map_btn above, for the in-game help (F1) button.
+        self.help_btn = None
         # Set for one frame when the KILL/EMERGENCY HUD icon is clicked, so
         # the per-frame proximity checks in update() (which normally only
         # look at pg.key.get_pressed()) treat a click as equivalent to the
@@ -1592,10 +1594,13 @@ class Game:
         base = pg.Surface((28, 22), pg.SRCALPHA)
         pg.draw.polygon(base, YELLOW, [(28, 11), (4, 0), (10, 11), (4, 22)])
         rotated = pg.transform.rotate(base, angle)
-        # y=110, not 70 -- self.map_btn (the minimap-toggle icon, always
-        # visible) occupies (WIDTH-80, 20) sized 56x56, i.e. y=20..76 at
-        # this same x, and the arrow was rendering right on top of it.
-        center = (WIDTH - 70, 110)
+        # x=WIDTH-160, not WIDTH-70 -- that column (WIDTH-80..WIDTH-24) is
+        # occupied top-to-bottom by the map button (y=20..76) and, since the
+        # in-game help button was added right below it (y=112..168), the
+        # compass arrow at y=110 started overlapping that too. Shifted left
+        # to sit clear of the whole button column instead of chasing each
+        # new icon added there.
+        center = (WIDTH - 160, 110)
         self.screen.blit(rotated, rotated.get_rect(center=center))
         dist_surf = vn_font(13).render(f"{int(distance)}m", True, YELLOW)
         self.screen.blit(dist_surf, dist_surf.get_rect(midtop=(center[0], center[1] + 20)))
@@ -3207,6 +3212,21 @@ class Game:
             self._draw_icon_key_label(pg.Rect(self.map_btn.x, self.map_btn.y, self.map_btn.width, self.map_btn.height),
                                       "TAB", ready=True, placement="below")
 
+        # In-game help button -- a clickable stand-in for the F1 shortcut so
+        # players can discover the controls overlay without needing to know
+        # the key exists. Stacked below the mini-map button; only shown when
+        # the same conditions that let F1 open it are met, so it never
+        # invites a click that would just no-op.
+        help_btn_enabled = (not self.paused and self.quiz_window is None
+                             and not self.emerg_meeting_button_status and not self.emerg_meeting_report_status
+                             and not self.eject)
+        if self.player.alive_status and help_btn_enabled:
+            self.help_btn = Button(self, "?", 30, 56, 56, WIDTH - 80, 112, "help_btn", WHITE,
+                                   Transparent_Black, None, None, None, 0)
+            self.help_btn.draw_text(self.screen)
+            self._draw_icon_key_label(pg.Rect(self.help_btn.x, self.help_btn.y, self.help_btn.width, self.help_btn.height),
+                                      "F1", ready=True, placement="below")
+
         # # AMBIENT SOUND CODE OPENS HERE -------------------------------------------------------------
         self.gamefuctions.load_ambient_sounds()
         # AMBIENT SOUND CODE CLOSES HERE -------------------------------------------------------------
@@ -3979,6 +3999,16 @@ class Game:
                         self.mini_map_button_status = not self.mini_map_button_status
                         # If mission box is opened then close it when we click on mini map button
                         self.task_button_click_status = False
+
+            # Help button click -- same toggle and same guard conditions as
+            # the K_F1 shortcut, just reachable with the mouse too.
+            if (event.type == pg.MOUSEBUTTONDOWN and event.button == LEFT_MOUSE_BUTTON and not self.paused
+                    and self.quiz_window is None and not self.emerg_meeting_button_status
+                    and not self.emerg_meeting_report_status and not self.eject):
+                pos = pg.mouse.get_pos()
+                if self.help_btn is not None and self.help_btn.click(pos):
+                    self.help_overlay_open = not self.help_overlay_open
+                    self.isdoingTask = self.help_overlay_open
             # Action HUD icons (Emergency/Kill/Sabotage/Lights) -- clicking is
             # an alternative to the keyboard shortcuts (Space/Enter/Ctrl/
             # Shift), not a bypass of their rules: the same cooldown/
